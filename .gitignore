@@ -1,0 +1,100 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+*.log
+
+# Production
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Misc
+.cache/
+.temp/
+.tmp/
+uploads/
+screenshots/
+
+# Playwright
+.playwright/
+playwright-report/
+test-results/
+
+# Exclude parent directories and other projects
+../Talenttap-Staging/
+../Talenttap-V3/
+../Talenttap/
+../Moniqo/
+../Moniqo_FE/
+../Talenttap-V2/
+../wais-trade/
+../waistrade/
+../../Documents/
+../../Downloads/
+../../Library/
+../../Movies/
+../../Music/
+../../Pictures/
+../../Public/
+../../.DS_Store
+../../.android/
+../../.angular-config.json
+../../.antigravity/
+../../.anydesk/
+../../.bash_history
+../../.cache/
+../../.claude/
+../../.codex/
+../../.config/
+../../.cursor/
+../../.docker/
+../../.emulator_console_auth_token
+../../.gemini/
+../../.gitconfig
+../../.gk/
+../../.gradle/
+../../.gsutil/
+../../.lesshst
+../../.local/
+../../.mongodb/
+../../.n8n/
+../../.npm/
+../../.nvm/
+../../.parsec/
+../../.ssh/
+../../.viminfo
+../../.vscode/
+../../.zcompdump
+../../.zprofile
+../../.zsh_history
+../../.zsh_sessions/
+../../.zshrc
+../../Applications/
+../../casino-games-page/
+../../talenttap-secrets/
+
+

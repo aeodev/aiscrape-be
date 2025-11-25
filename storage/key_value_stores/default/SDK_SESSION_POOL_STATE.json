@@ -1,0 +1,100 @@
+{
+  "usableSessionsCount": 2,
+  "retiredSessionsCount": 0,
+  "sessions": [
+    {
+      "id": "session_oefoSft0iK",
+      "cookieJar": {
+        "version": "tough-cookie@6.0.0",
+        "storeType": "MemoryCookieStore",
+        "rejectPublicSuffixes": true,
+        "enableLooseMode": false,
+        "allowSpecialUseDomain": true,
+        "prefixSecurity": "silent",
+        "cookies": []
+      },
+      "userData": {},
+      "maxErrorScore": 3,
+      "errorScoreDecrement": 0.5,
+      "expiresAt": "2025-11-25T17:11:23.524Z",
+      "createdAt": "2025-11-25T16:21:23.524Z",
+      "usageCount": 0,
+      "maxUsageCount": 50,
+      "errorScore": 0
+    },
+    {
+      "id": "session_3esD0eEgcJ",
+      "cookieJar": {
+        "version": "tough-cookie@6.0.0",
+        "storeType": "MemoryCookieStore",
+        "rejectPublicSuffixes": true,
+        "enableLooseMode": false,
+        "allowSpecialUseDomain": true,
+        "prefixSecurity": "silent",
+        "cookies": [
+          {
+            "key": "_splunk_rum_sid",
+            "value": "%7B%22id%22%3A%22bda6cd89e32568f08e67a1c87d31a54c%22%2C%22startTime%22%3A1764087685063%7D",
+            "expires": "2025-11-25T16:36:25.063Z",
+            "domain": "www.aljazeera.com",
+            "path": "/",
+            "hostOnly": true,
+            "creation": "2025-11-25T16:21:25.311Z",
+            "lastAccessed": "2025-11-25T16:21:25.311Z"
+          },
+          {
+            "key": "_cb",
+            "value": "CpbggtCk5a-pCa6F1l",
+            "expires": "2026-12-25T16:21:25.000Z",
+            "domain": "aljazeera.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2025-11-25T16:21:25.312Z",
+            "lastAccessed": "2025-11-25T16:21:25.312Z"
+          },
+          {
+            "key": "_chartbeat2",
+            "value": ".1764087685075.1764087685075.1.CNxg8FDf0cmiClSDZDDMOutgCkTtwf.1",
+            "expires": "2026-12-25T16:21:25.000Z",
+            "domain": "aljazeera.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2025-11-25T16:21:25.315Z",
+            "lastAccessed": "2025-11-25T16:21:25.315Z"
+          },
+          {
+            "key": "_cb_svref",
+            "value": "external",
+            "expires": "2025-11-25T16:51:25.000Z",
+            "domain": "aljazeera.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2025-11-25T16:21:25.316Z",
+            "lastAccessed": "2025-11-25T16:21:25.316Z"
+          },
+          {
+            "key": "AMP_9e2bdeb55f",
+            "value": "JTdCJTIyZGV2aWNlSWQlMjIlM0ElMjI5YjVkYzAzNi0wODFiLTQwODQtYjE1Ni1iNmI3ZTk3MTMwOWElMjIlMkMlMjJzZXNzaW9uSWQlMjIlM0ExNzY0MDg3Njg1MjAwJTJDJTIyb3B0T3V0JTIyJTNBZmFsc2UlMkMlMjJsYXN0RXZlbnRUaW1lJTIyJTNBMTc2NDA4NzY4NTIwMSUyQyUyMmxhc3RFdmVudElkJTIyJTNBMCU3RA==",
+            "expires": "2026-11-25T16:21:25.000Z",
+            "domain": "aljazeera.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2025-11-25T16:21:25.316Z",
+            "lastAccessed": "2025-11-25T16:21:25.316Z"
+          }
+        ]
+      },
+      "userData": {},
+      "maxErrorScore": 3,
+      "errorScoreDecrement": 0.5,
+      "expiresAt": "2025-11-25T17:11:23.526Z",
+      "createdAt": "2025-11-25T16:21:23.526Z",
+      "usageCount": 1,
+      "maxUsageCount": 50,
+      "errorScore": 0
+    }
+  ]
+}
