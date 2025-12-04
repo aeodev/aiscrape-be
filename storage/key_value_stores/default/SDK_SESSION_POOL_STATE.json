@@ -1,9 +1,9 @@
 {
-  "usableSessionsCount": 5,
-  "retiredSessionsCount": 1,
+  "usableSessionsCount": 2,
+  "retiredSessionsCount": 0,
   "sessions": [
     {
-      "id": "session_JQD7EWpdbN",
+      "id": "session_7qw9qvihFm",
       "cookieJar": {
         "version": "tough-cookie@6.0.0",
         "storeType": "MemoryCookieStore",
@@ -16,14 +16,14 @@
       "userData": {},
       "maxErrorScore": 3,
       "errorScoreDecrement": 0.5,
-      "expiresAt": "2025-12-04T04:43:34.807Z",
-      "createdAt": "2025-12-04T03:53:34.807Z",
+      "expiresAt": "2025-12-04T17:54:25.981Z",
+      "createdAt": "2025-12-04T17:04:25.981Z",
       "usageCount": 0,
       "maxUsageCount": 50,
       "errorScore": 0
     },
     {
-      "id": "session_lbk6o5QJ0M",
+      "id": "session_xqwrJqDbOP",
       "cookieJar": {
         "version": "tough-cookie@6.0.0",
         "storeType": "MemoryCookieStore",
@@ -33,284 +33,67 @@
         "prefixSecurity": "silent",
         "cookies": [
           {
-            "key": "AWSALB",
-            "value": "homVWn5ilLO2KyTxjOUtxVOqhK1TWWO5mFjCOxiEMp1wXd829n7AMKl7xMFaCfWaC67p0/MPxtevZbl2AcJHlCk3aWV/sdcVhv/PhFmRjBZXZ9HDPQBM/fCKWeAg",
-            "expires": "2025-12-11T03:54:07.928Z",
-            "domain": "www.pokemon.com",
-            "path": "/",
-            "hostOnly": true,
-            "creation": "2025-12-04T03:53:36.033Z",
-            "lastAccessed": "2025-12-04T03:54:09.341Z"
-          },
-          {
-            "key": "AWSALBCORS",
-            "value": "homVWn5ilLO2KyTxjOUtxVOqhK1TWWO5mFjCOxiEMp1wXd829n7AMKl7xMFaCfWaC67p0/MPxtevZbl2AcJHlCk3aWV/sdcVhv/PhFmRjBZXZ9HDPQBM/fCKWeAg",
-            "expires": "2025-12-11T03:54:07.928Z",
-            "domain": "www.pokemon.com",
+            "key": "session-id",
+            "value": "139-9764204-9360946",
+            "expires": "2026-12-04T17:04:27.644Z",
+            "domain": "amazon.com",
             "path": "/",
             "secure": true,
+            "hostOnly": false,
+            "creation": "2025-12-04T17:04:28.696Z",
+            "lastAccessed": "2025-12-04T17:04:28.696Z"
+          },
+          {
+            "key": "session-id-time",
+            "value": "2082787201l",
+            "expires": "2026-12-04T17:04:27.645Z",
+            "domain": "amazon.com",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2025-12-04T17:04:28.698Z",
+            "lastAccessed": "2025-12-04T17:04:28.698Z"
+          },
+          {
+            "key": "i18n-prefs",
+            "value": "USD",
+            "expires": "2026-12-04T17:04:27.645Z",
+            "domain": "amazon.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2025-12-04T17:04:28.699Z",
+            "lastAccessed": "2025-12-04T17:04:28.699Z"
+          },
+          {
+            "key": "lc-main",
+            "value": "en_US",
+            "expires": "2026-12-04T17:04:27.645Z",
+            "domain": "amazon.com",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2025-12-04T17:04:28.699Z",
+            "lastAccessed": "2025-12-04T17:04:28.699Z"
+          },
+          {
+            "key": "csm-hit",
+            "value": "tb:s-R7BA01TPY4ABWQYBVTPA|1764867867893&t:1764867868466&adb:adblk_yes",
+            "expires": "2026-11-19T17:04:28.000Z",
+            "domain": "www.amazon.com",
+            "path": "/",
             "hostOnly": true,
-            "creation": "2025-12-04T03:53:36.033Z",
-            "lastAccessed": "2025-12-04T03:54:09.341Z"
-          },
-          {
-            "key": "crafterSite",
-            "value": "pcom-main",
-            "expires": "2025-12-04T04:43:36.032Z",
-            "domain": "www.pokemon.com",
-            "path": "/",
-            "hostOnly": false,
-            "creation": "2025-12-04T03:53:36.034Z",
-            "lastAccessed": "2025-12-04T03:54:09.341Z"
-          },
-          {
-            "key": "django_language",
-            "value": "en",
-            "expires": "2026-12-04T09:43:20.928Z",
-            "domain": "www.pokemon.com",
-            "path": "/",
-            "hostOnly": true,
-            "creation": "2025-12-04T03:53:36.034Z",
-            "lastAccessed": "2025-12-04T03:54:09.341Z"
-          },
-          {
-            "key": "visid_incap_2884021",
-            "value": "NJqovRNyR6GPEGvrX00BXL8FMWkAAAAAQUIPAAAAAAAvdS79RUezD0EsBs8IqdLq",
-            "expires": "2026-12-03T15:29:51.240Z",
-            "domain": "pokemon.com",
-            "path": "/",
-            "httpOnly": true,
-            "hostOnly": false,
-            "creation": "2025-12-04T03:53:36.034Z",
-            "lastAccessed": "2025-12-04T03:54:09.341Z"
-          },
-          {
-            "key": "nlbi_2884021",
-            "value": "26eFOMrNC23UN53JgQq3qwAAAAAjAVkWUSRFlZMstabPJXz7",
-            "expires": "2025-12-04T04:43:36.032Z",
-            "domain": "pokemon.com",
-            "path": "/",
-            "httpOnly": true,
-            "hostOnly": false,
-            "creation": "2025-12-04T03:53:36.036Z",
-            "lastAccessed": "2025-12-04T03:54:09.341Z"
-          },
-          {
-            "key": "incap_ses_1641_2884021",
-            "value": "wP2dQqzjhV7hPB0YPgHGFr8FMWkAAAAAmqTpu36Nynlf/b80cOurOA==",
-            "expires": "2025-12-04T04:43:36.032Z",
-            "domain": "pokemon.com",
-            "path": "/",
-            "hostOnly": false,
-            "creation": "2025-12-04T03:53:36.037Z",
-            "lastAccessed": "2025-12-04T03:54:09.341Z"
-          },
-          {
-            "key": "reese84",
-            "value": "3:HuDYODR4Xy/wWMtfPQfkVA==:8+yizeP/TaiphxDvDQRo0urvAn0U4VDGficuVsbd/kBy+hUS52X7yQSehziienvzi1b6J01kgDvwB8XrwkqacYRjD7MFX9CHG7/oTxbbdKk7cNbGjGCNirjDWzC94IAHh45zkBD3zun6Z/K7D0fp6gdzNlMbdZ41lPTl6pXusOIX6WZDkGMSza/0D0vEsxkVkStx3yPCfvNlbLkXQX++6DoPvhf6J5tVQHijRSJ/5KbIIMSst1F7F389ynmT08w1Emt5qWQ7ciFw6UfMWTx+nSqL5/zHSG2XrkJZ8WXzSKImAspnqR0w6J3OmpDqnwjZywMdh+SwK7HW8nW/mq0oZhVFlAyRev6pc4dywoVp/+hgCJpAAXB2pEodzRh8PwVKpXhHL7/r978kdDJ/dqxt0dSybVZTTlXXmX65LM6ZUWERIeya0t2oTwB00M7WNpCFG0VBr3YHZZ9bQElIMh2yydsMD3R8njBVcqbCdjwy1evEzvFhSFMFScGGWzKr0ilE5ilhv98yOik+8DIHfWiip+hHk+FMNpNV/UTgYaDENvhaI6tTDnZgh2c12wuRMJz8o8GzTevEgs4Qsey8igpQyg==:lx4xz0QdfuoANU8kO1jhj7g+r+DBtHKZlvwg3obkYfI=",
-            "expires": "2026-01-03T03:54:09.095Z",
-            "domain": "www.pokemon.com",
-            "path": "/",
-            "hostOnly": false,
-            "creation": "2025-12-04T03:53:53.576Z",
-            "lastAccessed": "2025-12-04T03:54:09.341Z"
-          },
-          {
-            "key": "nlbi_2884021_2147483392",
-            "value": "A307R5WDuj3tPCFEgQq3qwAAAABVCKbY9inezVk3Y5oUJdM7",
-            "expires": "2025-12-04T04:44:09.341Z",
-            "domain": "pokemon.com",
-            "path": "/",
-            "httpOnly": true,
-            "hostOnly": false,
-            "creation": "2025-12-04T03:53:53.576Z",
-            "lastAccessed": "2025-12-04T03:54:09.341Z"
+            "creation": "2025-12-04T17:04:28.699Z",
+            "lastAccessed": "2025-12-04T17:04:28.699Z"
           }
         ]
       },
       "userData": {},
       "maxErrorScore": 3,
       "errorScoreDecrement": 0.5,
-      "expiresAt": "2025-12-04T04:43:34.809Z",
-      "createdAt": "2025-12-04T03:53:34.809Z",
-      "usageCount": 4,
-      "maxUsageCount": 50,
-      "errorScore": 6
-    },
-    {
-      "id": "session_4WQfiniWXp",
-      "cookieJar": {
-        "version": "tough-cookie@6.0.0",
-        "storeType": "MemoryCookieStore",
-        "rejectPublicSuffixes": true,
-        "enableLooseMode": false,
-        "allowSpecialUseDomain": true,
-        "prefixSecurity": "silent",
-        "cookies": []
-      },
-      "userData": {},
-      "maxErrorScore": 3,
-      "errorScoreDecrement": 0.5,
-      "expiresAt": "2025-12-04T04:43:51.075Z",
-      "createdAt": "2025-12-04T03:53:51.075Z",
-      "usageCount": 0,
-      "maxUsageCount": 50,
-      "errorScore": 0
-    },
-    {
-      "id": "session_AWklE2BHLM",
-      "cookieJar": {
-        "version": "tough-cookie@6.0.0",
-        "storeType": "MemoryCookieStore",
-        "rejectPublicSuffixes": true,
-        "enableLooseMode": false,
-        "allowSpecialUseDomain": true,
-        "prefixSecurity": "silent",
-        "cookies": []
-      },
-      "userData": {},
-      "maxErrorScore": 3,
-      "errorScoreDecrement": 0.5,
-      "expiresAt": "2025-12-04T04:44:08.656Z",
-      "createdAt": "2025-12-04T03:54:08.656Z",
-      "usageCount": 0,
-      "maxUsageCount": 50,
-      "errorScore": 0
-    },
-    {
-      "id": "session_qKpdE0B2Go",
-      "cookieJar": {
-        "version": "tough-cookie@6.0.0",
-        "storeType": "MemoryCookieStore",
-        "rejectPublicSuffixes": true,
-        "enableLooseMode": false,
-        "allowSpecialUseDomain": true,
-        "prefixSecurity": "silent",
-        "cookies": []
-      },
-      "userData": {},
-      "maxErrorScore": 3,
-      "errorScoreDecrement": 0.5,
-      "expiresAt": "2025-12-04T04:44:24.371Z",
-      "createdAt": "2025-12-04T03:54:24.371Z",
-      "usageCount": 0,
-      "maxUsageCount": 50,
-      "errorScore": 0
-    },
-    {
-      "id": "session_NaxIccyLcQ",
-      "cookieJar": {
-        "version": "tough-cookie@6.0.0",
-        "storeType": "MemoryCookieStore",
-        "rejectPublicSuffixes": true,
-        "enableLooseMode": false,
-        "allowSpecialUseDomain": true,
-        "prefixSecurity": "silent",
-        "cookies": [
-          {
-            "key": "AWSALB",
-            "value": "+SDZ+O65sKa4tzhJrREZ48ovqYtbkVZSNr6RQm2N2fljT8mysdeCg4l5Swmo4fuXXnl8i0sRejCwY07MaJqbE+pWhCxrTIESdTr4VHbYLL7hJzh85AY2ZiDC0ZZa",
-            "expires": "2025-12-11T03:54:24.036Z",
-            "domain": "www.pokemon.com",
-            "path": "/",
-            "hostOnly": true,
-            "creation": "2025-12-04T03:54:25.913Z",
-            "lastAccessed": "2025-12-04T03:54:25.913Z"
-          },
-          {
-            "key": "AWSALBCORS",
-            "value": "+SDZ+O65sKa4tzhJrREZ48ovqYtbkVZSNr6RQm2N2fljT8mysdeCg4l5Swmo4fuXXnl8i0sRejCwY07MaJqbE+pWhCxrTIESdTr4VHbYLL7hJzh85AY2ZiDC0ZZa",
-            "expires": "2025-12-11T03:54:24.037Z",
-            "domain": "www.pokemon.com",
-            "path": "/",
-            "secure": true,
-            "hostOnly": true,
-            "creation": "2025-12-04T03:54:25.913Z",
-            "lastAccessed": "2025-12-04T03:54:25.913Z"
-          },
-          {
-            "key": "crafterSite",
-            "value": "pcom-main",
-            "expires": "2025-12-04T04:44:25.913Z",
-            "domain": "www.pokemon.com",
-            "path": "/",
-            "hostOnly": false,
-            "creation": "2025-12-04T03:54:25.913Z",
-            "lastAccessed": "2025-12-04T03:54:25.913Z"
-          },
-          {
-            "key": "django_language",
-            "value": "en",
-            "expires": "2026-12-04T09:43:37.037Z",
-            "domain": "www.pokemon.com",
-            "path": "/",
-            "hostOnly": true,
-            "creation": "2025-12-04T03:54:25.913Z",
-            "lastAccessed": "2025-12-04T03:54:25.913Z"
-          },
-          {
-            "key": "visid_incap_2884021",
-            "value": "Hhiy0vt6Svy9vONwlWjxCfAFMWkAAAAAQUIPAAAAAAAqKzqNUoKGDw0ehwgb0Jfi",
-            "expires": "2026-12-03T15:30:41.037Z",
-            "domain": "pokemon.com",
-            "path": "/",
-            "httpOnly": true,
-            "hostOnly": false,
-            "creation": "2025-12-04T03:54:25.913Z",
-            "lastAccessed": "2025-12-04T03:54:25.913Z"
-          },
-          {
-            "key": "nlbi_2884021",
-            "value": "0fq1VYz+gzd4bbshgQq3qwAAAAAJ+lJXLagspg0NMoxsGrfW",
-            "expires": "2025-12-04T04:44:25.913Z",
-            "domain": "pokemon.com",
-            "path": "/",
-            "httpOnly": true,
-            "hostOnly": false,
-            "creation": "2025-12-04T03:54:25.913Z",
-            "lastAccessed": "2025-12-04T03:54:25.913Z"
-          },
-          {
-            "key": "incap_ses_1641_2884021",
-            "value": "+Q3wNcbIvF77lh0YPgHGFvAFMWkAAAAAtyEYmyY9A8XthHmLKKgwkQ==",
-            "expires": "2025-12-04T04:44:25.913Z",
-            "domain": "pokemon.com",
-            "path": "/",
-            "hostOnly": false,
-            "creation": "2025-12-04T03:54:25.913Z",
-            "lastAccessed": "2025-12-04T03:54:25.913Z"
-          },
-          {
-            "key": "nlbi_2884021_2147483392",
-            "value": "ZIWUDJpm/yXEE10/gQq3qwAAAADFuDUMpXIFFd10rEAV/kcW",
-            "expires": "2025-12-04T04:44:25.913Z",
-            "domain": "pokemon.com",
-            "path": "/",
-            "httpOnly": true,
-            "hostOnly": false,
-            "creation": "2025-12-04T03:54:25.913Z",
-            "lastAccessed": "2025-12-04T03:54:25.913Z"
-          },
-          {
-            "key": "reese84",
-            "value": "3:AzS9pwZCgr2WFWnv4iuIDA==:SP0GHZjx9lWHGOASFLnOffNXOqcZhgkY8TiS9UVDQw7DK0mi2TCwOC8CvLqdinc96k5OYZYW0XJpsYw/jfXQxTmZq7EMROY1RlV7hcgFKJCzocj7YB22wGfouI4ad50A7bZ84WxyvgRHmGMF0afq16R/PTk5K3FzxDtREiurORk+JMJ96yXxMGwMgE0zrT/u0zp5nCOrL/ffNeHCB8zIarOozWkjsTSEdm80YMUZh42jzMVESpV6i1eybm4QUknbw3qZaQCViG7L81WOk3RqHc6+ZmhoELHiVf6UfW8rxsZYtQfn4WQUSN2ipzXIWC0fndxi2WhNq+ZF4LQ6HEJJZUJ0NFSYJlDfR1SR7VlYnEVCFxOccssA2nTRsKsGlh3twM4oEqNap/ARhvfP/7w/RdqeTgOlAFm5xPRZ9kBezW2cHIK+fW2IPCDWViQkAjDKo52q3kEmGxToit7Af4keZ7Q+Pfp9+sl//XV8SgCbaIdqNJosIWUVuEXiYBidzcw6akh7+6YCT2nUj11Iy35INNI42Gapol3mzOQYn7Elw2qHYVdiPUR1lb+fMZepCNtp:zAAhBts4IF+d3BppEuZU/2j8gao+fTORqFGpKzpG87U=",
-            "expires": "2026-01-03T03:54:25.899Z",
-            "domain": "www.pokemon.com",
-            "path": "/",
-            "hostOnly": false,
-            "creation": "2025-12-04T03:54:25.913Z",
-            "lastAccessed": "2025-12-04T03:54:25.913Z"
-          }
-        ]
-      },
-      "userData": {},
-      "maxErrorScore": 3,
-      "errorScoreDecrement": 0.5,
-      "expiresAt": "2025-12-04T04:44:24.373Z",
-      "createdAt": "2025-12-04T03:54:24.373Z",
+      "expiresAt": "2025-12-04T17:54:25.983Z",
+      "createdAt": "2025-12-04T17:04:25.983Z",
       "usageCount": 1,
       "maxUsageCount": 50,
-      "errorScore": 1
+      "errorScore": 0
     }
   ]
 }

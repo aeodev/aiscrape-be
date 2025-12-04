@@ -3,7 +3,7 @@
  * Unified pipeline for orchestrating HTML processing, markdown conversion, and text extraction
  */
 
-import { htmlProcessor, HtmlProcessorConfig, ProcessedHtml } from './html.processor';
+import { HtmlProcessor, HtmlProcessorConfig, ProcessedHtml } from './html.processor';
 import { markdownProcessor, htmlStringToMarkdown } from './markdown.processor';
 import { textProcessor, TextProcessorConfig, ProcessedText } from './text.processor';
 
@@ -104,7 +104,9 @@ export class ProcessingPipeline {
           extractMainContent: config.extractMainContent,
         };
 
-        const processed = htmlProcessor.process(currentHtml, htmlConfig);
+        // Create processor with config
+        const htmlProcessorWithConfig = new HtmlProcessor(htmlConfig);
+        const processed = htmlProcessorWithConfig.process(currentHtml);
         cleanHtml = processed.cleanHtml;
         mainContent = processed.mainContent;
         currentHtml = config.preserveOriginalHtml ? html : (cleanHtml || html);

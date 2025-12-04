@@ -8,8 +8,11 @@ import { scrapeRepository } from './scraper.repository';
 import { getIO } from '../../lib/socket';
 import { geminiService } from '../../lib/gemini';
 import { extractionManager, ExtractionStrategyType } from '../../lib/extraction';
+import { cacheManager } from '../../lib/cache';
+import { createCircuitBreaker, CircuitState } from '../../lib/circuit-breaker';
 import { ApiError } from '../../middleware/error-handler';
 import { env } from '../../config/env';
+import { createHash } from 'crypto';
 import {
   IScrapeJob,
   ScrapeStatus,
@@ -17,6 +20,7 @@ import {
   IExtractedEntity,
   IScrapeProgressEvent,
 } from './scraper.types';
+import { scraperActionsService } from './scraper-actions.service';
 import { retryWithBackoff, addRandomDelay } from './utils';
 import {
   scrapeWithHttp,
@@ -31,6 +35,74 @@ import {
 import { validateContent } from './utils/content-validator';
 
 export class ScraperService {
+  // Circuit breakers for critical operations
+  private scraperCircuitBreaker = createCircuitBreaker(
+    async (url: string, scraperType: ScraperType, options: any, emitProgress: any) => {
+      // This will be wrapped around actual scraper calls
+      throw new Error('Circuit breaker wrapper - use specific scraper circuit breakers');
+    },
+    {
+      timeout: env.CIRCUIT_BREAKER_TIMEOUT * 3, // 30s for scrapers
+      errorThresholdPercentage: env.CIRCUIT_BREAKER_ERROR_THRESHOLD,
+      resetTimeout: env.CIRCUIT_BREAKER_RESET_TIMEOUT,
+      minimumRequests: env.CIRCUIT_BREAKER_MIN_REQUESTS,
+    }
+  );
+
+  private jinaCircuitBreaker = createCircuitBreaker(
+    async (url: string, jobId: string, emitProgress: any, options: any) => {
+      return await scrapeWithJina(url, jobId, emitProgress, options);
+    },
+    {
+      timeout: 20000, // 20s for Jina API
+      errorThresholdPercentage: env.CIRCUIT_BREAKER_ERROR_THRESHOLD,
+      resetTimeout: env.CIRCUIT_BREAKER_RESET_TIMEOUT,
+      minimumRequests: env.CIRCUIT_BREAKER_MIN_REQUESTS,
+    }
+  );
+
+  private geminiCircuitBreaker = createCircuitBreaker(
+    async (text: string, taskDescription: string) => {
+      return await geminiService.extractData(text, taskDescription);
+    },
+    {
+      timeout: env.CIRCUIT_BREAKER_TIMEOUT, // 10s for API calls
+      errorThresholdPercentage: env.CIRCUIT_BREAKER_ERROR_THRESHOLD,
+      resetTimeout: env.CIRCUIT_BREAKER_RESET_TIMEOUT,
+      minimumRequests: env.CIRCUIT_BREAKER_MIN_REQUESTS,
+    }
+  );
+
+  constructor() {
+    // Log circuit breaker state changes
+    this.scraperCircuitBreaker.on('open', () => {
+      console.warn('Scraper circuit breaker opened - too many failures');
+    });
+    this.scraperCircuitBreaker.on('halfOpen', () => {
+      console.log('Scraper circuit breaker half-open - testing recovery');
+    });
+    this.scraperCircuitBreaker.on('close', () => {
+      console.log('Scraper circuit breaker closed - service recovered');
+    });
+
+    this.jinaCircuitBreaker.on('open', () => {
+      console.warn('Jina API circuit breaker opened');
+    });
+    this.geminiCircuitBreaker.on('open', () => {
+      console.warn('Gemini API circuit breaker opened');
+    });
+  }
+
+  /**
+   * Generate cache key for a scrape job
+   */
+  private generateCacheKey(url: string, scraperType: ScraperType, taskDescription?: string): string {
+    const taskHash = taskDescription 
+      ? createHash('sha256').update(taskDescription).digest('hex').substring(0, 8)
+      : 'default';
+    return `scrape:${url}:${scraperType}:${taskHash}`;
+  }
+
   /**
    * Create a new scrape job
    */
@@ -124,7 +196,7 @@ export class ScraperService {
 
     // Tier 1: HTTP + Cheerio (fastest, ~100ms)
     console.log(`Job ${jobId}: Trying Tier 1 - HTTP scraper...`);
-    const httpResult = await scrapeWithHttp(url, jobId, emitProgress);
+    const httpResult = await scrapeWithHttp(url, jobId, emitProgress, options);
     
     if (this.isValidContent(httpResult)) {
       console.log(`Job ${jobId}: ✓ HTTP scraper got content, validating quality...`);
@@ -220,6 +292,56 @@ export class ScraperService {
       let scrapedData: ScrapedResult;
       let scraperUsed: ScraperType;
 
+      // Check cache before scraping
+      const cacheKey = this.generateCacheKey(job.url, scraperType, job.taskDescription);
+      const cachedResult = await cacheManager.get<ScrapedResult>(cacheKey);
+      
+      if (cachedResult.data && cachedResult.fromCache) {
+        console.log(`Job ${jobId}: Using cached result (TTL: ${cachedResult.ttl}s)`);
+        scrapedData = cachedResult.data;
+        scraperUsed = scraperType;
+        
+        // Update job with cached data
+        await scrapeRepository.updateScrapedData(jobId, {
+          html: scrapedData.html,
+          markdown: scrapedData.markdown,
+          text: scrapedData.text,
+          screenshots: scrapedData.screenshots || [],
+          metadata: {
+            finalUrl: scrapedData.finalUrl,
+            statusCode: scrapedData.statusCode,
+            contentType: scrapedData.contentType,
+            pageTitle: scrapedData.pageTitle,
+            pageDescription: scrapedData.pageDescription,
+            duration: 0,
+            requestCount: scrapedData.requestCount || 1,
+            dataSize: Buffer.byteLength(scrapedData.html || '', 'utf8'),
+            screenshotCount: scrapedData.screenshots?.length || 0,
+            retryCount: 0,
+            scraperUsed,
+            fromCache: true,
+          },
+        });
+        
+        await scrapeRepository.updateStatus(jobId, ScrapeStatus.COMPLETED);
+        this.emitProgress(jobId, {
+          jobId,
+          status: ScrapeStatus.COMPLETED,
+          message: `Job completed from cache`,
+          progress: 100,
+        });
+        
+        const completedJob = await scrapeRepository.findById(jobId);
+        if (completedJob) {
+          getIO().emit('scrape:complete', {
+            jobId,
+            status: ScrapeStatus.COMPLETED,
+            job: completedJob,
+          });
+        }
+        return;
+      }
+
       this.emitProgress(jobId, {
         jobId,
         status: ScrapeStatus.RUNNING,
@@ -246,7 +368,7 @@ export class ScraperService {
         scrapedData = await scrapeLinkedIn(
           job.url,
           jobId,
-          job.scrapeOptions.linkedinAuth,
+          job.scrapeOptions?.linkedinAuth!,
           emitProgress
         );
         scraperUsed = ScraperType.PLAYWRIGHT; // LinkedIn uses Playwright under the hood
@@ -283,17 +405,39 @@ For detailed instructions, visit: GET /api/scrape/linkedin/instructions
         // Execute scraping based on type
         switch (scraperType) {
         case ScraperType.HTTP:
-          const httpResult = await scrapeWithHttp(job.url, jobId, emitProgress);
+          const httpResult = await scrapeWithHttp(job.url, jobId, emitProgress, job.scrapeOptions || {});
           if (!httpResult) throw new Error('HTTP scraper failed');
           scrapedData = httpResult;
           scraperUsed = ScraperType.HTTP;
           break;
 
         case ScraperType.JINA:
-          const jinaResult = await scrapeWithJina(job.url, jobId, emitProgress);
-          if (!jinaResult) throw new Error('Jina Reader API failed');
-          scrapedData = jinaResult;
-          scraperUsed = ScraperType.JINA;
+          try {
+            const jinaResult = await this.jinaCircuitBreaker.execute(
+              job.url,
+              jobId,
+              emitProgress,
+              job.scrapeOptions || {}
+            );
+            if (!jinaResult) throw new Error('Jina Reader API failed');
+            scrapedData = jinaResult;
+            scraperUsed = ScraperType.JINA;
+          } catch (cbError: any) {
+            // Circuit breaker is open or request failed
+            if (this.jinaCircuitBreaker.getState() === CircuitState.OPEN) {
+              // Try to get cached result as fallback
+              const cachedResult = await cacheManager.get<ScrapedResult>(cacheKey);
+              if (cachedResult.data && cachedResult.fromCache) {
+                console.log(`Job ${jobId}: Circuit breaker open, using cached result`);
+                scrapedData = cachedResult.data;
+                scraperUsed = ScraperType.JINA;
+              } else {
+                throw new Error(`Jina API circuit breaker is open. Please try again later. ${cbError.message}`);
+              }
+            } else {
+              throw cbError;
+            }
+          }
           break;
 
         case ScraperType.PLAYWRIGHT:
@@ -302,7 +446,7 @@ For detailed instructions, visit: GET /api/scrape/linkedin/instructions
           break;
 
         case ScraperType.CHEERIO:
-          scrapedData = await scrapeWithCheerio(job.url, jobId, emitProgress);
+          scrapedData = await scrapeWithCheerio(job.url, jobId, emitProgress, job.scrapeOptions || {});
           scraperUsed = ScraperType.CHEERIO;
           break;
 
@@ -340,6 +484,14 @@ For detailed instructions, visit: GET /api/scrape/linkedin/instructions
       const dataSize = Buffer.byteLength(scrapedData.html || '', 'utf8');
 
       console.log(`Job ${jobId}: Scraped ${dataSize} bytes of HTML, ${scrapedData.text?.length || 0} chars of text in ${duration}ms using ${scraperUsed}`);
+
+      // Cache the scraped result
+      try {
+        await cacheManager.set(cacheKey, scrapedData, env.CACHE_TTL);
+        console.log(`Job ${jobId}: Cached result with key ${cacheKey} (TTL: ${env.CACHE_TTL}s)`);
+      } catch (cacheError: any) {
+        console.error(`Job ${jobId}: Failed to cache result:`, cacheError.message);
+      }
 
       await scrapeRepository.updateScrapedData(jobId, {
         html: scrapedData.html,
@@ -404,18 +556,29 @@ For detailed instructions, visit: GET /api/scrape/linkedin/instructions
             // Fallback to direct Gemini service if no strategies registered yet
             if (geminiService.isAvailable()) {
               const aiStartTime = Date.now();
-              const aiResult = await geminiService.extractData(
-                scrapedData.text || scrapedData.html || '',
-                job.taskDescription
-              );
-              extractionResult = {
-                entities: aiResult.entities,
-                success: aiResult.success,
-                strategy: ExtractionStrategyType.LLM,
-                executionTime: Date.now() - aiStartTime,
-                error: aiResult.error,
-                metadata: { modelName: aiResult.modelName },
-              };
+              try {
+                const aiResult = await this.geminiCircuitBreaker.execute(
+                  scrapedData.text || scrapedData.html || '',
+                  job.taskDescription
+                );
+                extractionResult = {
+                  entities: aiResult.entities,
+                  success: aiResult.success,
+                  strategy: ExtractionStrategyType.LLM,
+                  executionTime: Date.now() - aiStartTime,
+                  error: aiResult.error,
+                  metadata: { modelName: aiResult.modelName },
+                };
+              } catch (cbError: any) {
+                // Circuit breaker is open
+                extractionResult = {
+                  entities: [],
+                  success: false,
+                  strategy: ExtractionStrategyType.LLM,
+                  executionTime: Date.now() - aiStartTime,
+                  error: `Gemini API circuit breaker is open. ${cbError.message}`,
+                };
+              }
             } else {
               extractionResult = {
                 entities: [],
@@ -431,7 +594,7 @@ For detailed instructions, visit: GET /api/scrape/linkedin/instructions
           aiProcessing = {
             model: extractionResult.metadata?.modelName || 'extraction-manager',
             prompt: job.taskDescription,
-            response: extractionResult.metadata?.summary || '',
+            response: (extractionResult.metadata as any)?.summary || '',
             processingTime: extractionResult.executionTime,
             success: extractionResult.success,
             error: extractionResult.error,
@@ -449,9 +612,26 @@ For detailed instructions, visit: GET /api/scrape/linkedin/instructions
         }
       }
 
+      // Get circuit breaker stats for metadata
+      const currentJob = await scrapeRepository.findById(jobId);
+      const circuitBreakerStats = {
+        scraper: this.scraperCircuitBreaker.getStats(),
+        jina: this.jinaCircuitBreaker.getStats(),
+        gemini: this.geminiCircuitBreaker.getStats(),
+      };
+
       await scrapeRepository.updateScrapedData(jobId, {
         extractedEntities,
         aiProcessing,
+        metadata: {
+          duration: currentJob?.metadata?.duration ?? 0,
+          requestCount: currentJob?.metadata?.requestCount ?? 0,
+          dataSize: currentJob?.metadata?.dataSize ?? 0,
+          screenshotCount: currentJob?.metadata?.screenshotCount ?? 0,
+          retryCount: currentJob?.metadata?.retryCount ?? 0,
+          ...currentJob?.metadata,
+          circuitBreakerStats,
+        },
       });
 
       await scrapeRepository.updateStatus(jobId, ScrapeStatus.COMPLETED);
@@ -555,6 +735,14 @@ For detailed instructions, visit: GET /api/scrape/linkedin/instructions
    * Delete a job
    */
   async deleteJob(jobId: string): Promise<boolean> {
+    const job = await scrapeRepository.findById(jobId);
+    if (job) {
+      // Invalidate cache for this job
+      const cacheKey = this.generateCacheKey(job.url, job.scraperType || ScraperType.AUTO, job.taskDescription);
+      await cacheManager.delete(cacheKey).catch((err) => {
+        console.error(`Failed to invalidate cache for job ${jobId}:`, err.message);
+      });
+    }
     return await scrapeRepository.delete(jobId);
   }
 
@@ -641,8 +829,32 @@ For detailed instructions, visit: GET /api/scrape/linkedin/instructions
     let context = '';
 
     if (url) {
-      // Check for recent job with same URL (skip if forceRefresh)
-      if (options.sessionId && !options.forceRefresh) {
+      // Check cache first (skip if forceRefresh)
+      if (!options.forceRefresh) {
+        const scraperType = options.scraperType || ScraperType.AUTO;
+        const taskDescription = question || 'Extract all relevant information';
+        const cacheKey = this.generateCacheKey(url, scraperType, taskDescription);
+        const cachedResult = await cacheManager.get<ScrapedResult>(cacheKey);
+        
+        if (cachedResult.data && cachedResult.fromCache) {
+          console.log(`Using cached scrape result (TTL: ${cachedResult.ttl}s)`);
+          context = cachedResult.data.text || cachedResult.data.markdown || '';
+          // Create a minimal job object for response
+          job = {
+            id: 'cached',
+            url,
+            taskDescription,
+            scraperType,
+            status: ScrapeStatus.COMPLETED,
+            text: cachedResult.data.text,
+            markdown: cachedResult.data.markdown,
+            html: cachedResult.data.html,
+          } as any;
+        }
+      }
+
+      // Check for recent job with same URL (skip if forceRefresh or cache hit)
+      if (!job && options.sessionId && !options.forceRefresh) {
         const recentJobs = await this.getJobsBySession(options.sessionId);
         const recentJob = recentJobs
           .filter(j => j.url === url && j.status === ScrapeStatus.COMPLETED)
@@ -671,8 +883,8 @@ For detailed instructions, visit: GET /api/scrape/linkedin/instructions
           linkedinAuth: options.linkedinAuth,
         });
 
-        // Wait for job to complete (reduced timeout since cascade is faster)
-        const maxWaitTime = 60000; // Reduced from 120s to 60s
+        // Wait for job to complete (increased timeout for complex scrapes)
+        const maxWaitTime = 120000; // Increased to 120s for complex scrapes
         const startTime = Date.now();
         const checkInterval = 500; // Check more frequently
 
@@ -728,7 +940,7 @@ For detailed instructions, visit: GET /api/scrape/linkedin/instructions
 
     const response = await geminiService.chat(context, history, enhancedQuestion);
 
-    if (job) {
+    if (job && job.id !== 'cached') {
       const userMsg = { role: 'user', content: enhancedQuestion, timestamp: new Date() };
       const aiMsg = { role: 'assistant', content: response, timestamp: new Date() };
 
@@ -755,6 +967,18 @@ For detailed instructions, visit: GET /api/scrape/linkedin/instructions
     } catch (error) {
       console.error('Error emitting progress:', error);
     }
+  }
+
+  /**
+   * Emit action event via Socket.IO
+   */
+  emitAction(
+    jobId: string,
+    type: 'OBSERVATION' | 'ACTION' | 'EXTRACTION' | 'ANALYSIS' | 'NAVIGATION' | 'CLICK' | 'WAIT',
+    message: string,
+    details?: Record<string, any>
+  ): void {
+    scraperActionsService.emitAction(jobId, type, message, details);
   }
 }
 

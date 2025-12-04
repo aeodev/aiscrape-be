@@ -5,6 +5,7 @@
 
 import { ValidationContext, ValidationMetrics } from './content-validator.types';
 import * as cheerio from 'cheerio';
+import { createHash } from 'crypto';
 
 /**
  * Get validation metrics from context

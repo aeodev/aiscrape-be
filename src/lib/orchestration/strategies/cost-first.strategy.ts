@@ -36,7 +36,7 @@ export class CostFirstStrategy extends BaseOrchestrationStrategy {
     console.log(`Job ${context.jobId}: Trying Tier 1 - HTTP scraper (cheapest)...`);
 
     const httpAttempt = await this.executeScraper(context, ScraperType.HTTP, () =>
-      scrapeWithHttp(context.url, context.jobId, context.emitProgress)
+      scrapeWithHttp(context.url, context.jobId, context.emitProgress, context.options)
     );
     attempts.push(httpAttempt);
 
@@ -59,7 +59,7 @@ export class CostFirstStrategy extends BaseOrchestrationStrategy {
     console.log(`Job ${context.jobId}: Trying Tier 2 - Cheerio scraper...`);
 
     const cheerioAttempt = await this.executeScraper(context, ScraperType.CHEERIO, () =>
-      scrapeWithCheerio(context.url, context.jobId, context.emitProgress)
+      scrapeWithCheerio(context.url, context.jobId, context.emitProgress, context.options)
     );
     attempts.push(cheerioAttempt);
 
@@ -81,7 +81,7 @@ export class CostFirstStrategy extends BaseOrchestrationStrategy {
     console.log(`Job ${context.jobId}: Trying Tier 3 - Jina Reader...`);
 
     const jinaAttempt = await this.executeScraper(context, ScraperType.JINA, () =>
-      scrapeWithJina(context.url, context.jobId, context.emitProgress)
+      scrapeWithJina(context.url, context.jobId, context.emitProgress, context.options)
     );
     attempts.push(jinaAttempt);
 

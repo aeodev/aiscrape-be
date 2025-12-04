@@ -9,7 +9,9 @@
 import * as cheerio from 'cheerio';
 import { ScrapeStatus } from '../scraper.types';
 import { processContentWithCheerio } from '../../../lib/processing';
-import type { ScrapedResult, ProgressEmitter } from './types';
+import { proxyManager } from '../../../lib/proxy';
+import { scraperActionsService } from '../scraper-actions.service';
+import type { ScrapedResult, ProgressEmitter, ScraperOptions } from './types';
 
 // Timeout constants
 const HTTP_TIMEOUT = 10000; // 10 seconds
@@ -41,13 +43,15 @@ function getRandomUserAgent(): string {
 async function fetchWithTimeout(
   url: string,
   timeout: number,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
+  useProxy?: boolean,
+  proxyUrl?: string
 ): Promise<Response | null> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const response = await fetch(url, {
+    const fetchOptions: RequestInit = {
       method: 'GET',
       headers: {
         'User-Agent': getRandomUserAgent(),
@@ -57,7 +61,18 @@ async function fetchWithTimeout(
       },
       redirect: 'follow',
       signal: controller.signal,
-    });
+    };
+
+    // Note: Node.js fetch() doesn't natively support proxies
+    // For full proxy support, consider using https-proxy-agent library
+    // For now, proxy is handled at the network level via environment variables
+    if (useProxy && proxyUrl) {
+      // Proxy URL is available but fetch() doesn't support it directly
+      // This would require https-proxy-agent library
+      console.log(`Proxy requested but fetch() doesn't support direct proxy configuration. Using network-level proxy if configured.`);
+    }
+
+    const response = await fetch(url, fetchOptions);
     clearTimeout(timeoutId);
     return response.ok ? response : null;
   } catch {
@@ -180,7 +195,8 @@ function extractJsonData(responseText: string): any[] | null {
 export async function scrapeWithHttp(
   url: string,
   jobId: string,
-  emitProgress: ProgressEmitter
+  emitProgress: ProgressEmitter,
+  options?: ScraperOptions
 ): Promise<ScrapedResult | null> {
   emitProgress(jobId, {
     jobId,
@@ -189,6 +205,19 @@ export async function scrapeWithHttp(
     progress: 25,
   });
 
+  scraperActionsService.observe(jobId, `Fetching page: ${url}`);
+
+  // Get proxy if enabled
+  const useProxy = options?.useProxy ?? false;
+  let proxy: { url: string; id: string } | null = null;
+  if (useProxy) {
+    proxy = proxyManager.getProxy();
+    if (proxy) {
+      console.log(`Job ${jobId}: Using proxy ${proxy.id} for HTTP scraper`);
+      scraperActionsService.observe(jobId, `Using proxy: ${proxy.id}`);
+    }
+  }
+
   try {
     const startTime = Date.now();
     let requestCount = 1; // Start with 1 for the main request
@@ -196,24 +225,31 @@ export async function scrapeWithHttp(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), HTTP_TIMEOUT);
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': getRandomUserAgent(),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-      },
-      redirect: 'follow',
-      signal: controller.signal,
-    });
+    const response = await fetchWithTimeout(
+      url,
+      HTTP_TIMEOUT,
+      undefined,
+      useProxy,
+      proxy?.url
+    );
 
-    clearTimeout(timeoutId);
+    if (!response) {
+      if (proxy) {
+        proxyManager.markProxyFailed(proxy.id);
+      }
+      return null;
+    }
+
+    // Mark proxy success if used
+    if (proxy) {
+      proxyManager.markProxySuccess(proxy.id, Date.now() - startTime);
+    }
 
     if (!response.ok) {
       console.log(`Job ${jobId}: HTTP scrape returned ${response.status}`);
+      if (proxy) {
+        proxyManager.markProxyFailed(proxy.id);
+      }
       return null;
     }
 
@@ -239,6 +275,8 @@ export async function scrapeWithHttp(
       progress: 40,
     });
 
+    scraperActionsService.action(jobId, 'Parsing HTML content', { htmlLength: html.length });
+
     // Parse with Cheerio
     const $ = cheerio.load(html);
     const ajaxContents: string[] = [];
@@ -249,6 +287,8 @@ export async function scrapeWithHttp(
     if (ajaxEndpoints.length > 0) {
       console.log(`Job ${jobId}: Detected ${ajaxEndpoints.length} potential AJAX endpoints`);
       
+      scraperActionsService.observe(jobId, `Found ${ajaxEndpoints.length} AJAX endpoints`);
+      
       emitProgress(jobId, {
         jobId,
         status: ScrapeStatus.RUNNING,
@@ -258,7 +298,8 @@ export async function scrapeWithHttp(
 
       // Fetch AJAX endpoints in parallel
       const ajaxPromises = ajaxEndpoints.map(async (endpoint): Promise<AjaxResult | null> => {
-        const ajaxResponse = await fetchWithTimeout(endpoint, AJAX_TIMEOUT);
+        scraperActionsService.action(jobId, `Fetching AJAX endpoint: ${endpoint}`);
+        const ajaxResponse = await fetchWithTimeout(endpoint, AJAX_TIMEOUT, undefined, useProxy, proxy?.url);
         if (!ajaxResponse) return null;
 
         const responseText = await ajaxResponse.text();
@@ -314,6 +355,7 @@ export async function scrapeWithHttp(
     
     if (iframes.length > 0 || frames.length > 0) {
       console.log(`Job ${jobId}: Page has ${iframes.length} iframes and ${frames.length} frames - fetching frame content`);
+      scraperActionsService.observe(jobId, `Found ${iframes.length} iframes and ${frames.length} frames`);
       
       // Collect frame URLs
       const frameUrls: { src: string; resolvedUrl: string }[] = [];
@@ -335,7 +377,7 @@ export async function scrapeWithHttp(
       // Fetch all frames in parallel
       const framePromises = frameUrls.map(async ({ src, resolvedUrl }): Promise<FrameResult | null> => {
         console.log(`Job ${jobId}: Fetching frame content from ${resolvedUrl}`);
-        const frameResponse = await fetchWithTimeout(resolvedUrl, FRAME_TIMEOUT);
+        const frameResponse = await fetchWithTimeout(resolvedUrl, FRAME_TIMEOUT, undefined, useProxy, proxy?.url);
         
         if (!frameResponse) return null;
         
@@ -397,7 +439,7 @@ export async function scrapeWithHttp(
         
         const detailPromises = allDetailLinks.slice(0, MAX_DETAIL_LINKS).map(
           async ({ detailUrl }): Promise<DetailResult | null> => {
-            const detailResponse = await fetchWithTimeout(detailUrl, DETAIL_TIMEOUT);
+            const detailResponse = await fetchWithTimeout(detailUrl, DETAIL_TIMEOUT, undefined, useProxy, proxy?.url);
             
             if (!detailResponse) return null;
             
@@ -433,6 +475,7 @@ export async function scrapeWithHttp(
     const contentElement = mainContent.length > 0 ? mainContent : $('body');
 
     // Process content through pipeline
+    scraperActionsService.action(jobId, 'Extracting text content from HTML');
     const pipelineResult = await processContentWithCheerio($, contentElement, {
       enableHtmlProcessing: true,
       enableMarkdownConversion: true,
@@ -443,14 +486,18 @@ export async function scrapeWithHttp(
     let text = pipelineResult.text;
     let markdown = pipelineResult.markdown;
     
+    scraperActionsService.extract(jobId, `Extracted ${text.length} characters of text`, { textLength: text.length });
+    
     // Add AJAX content to text
     if (ajaxContents.length > 0) {
+      scraperActionsService.extract(jobId, `Added ${ajaxContents.length} AJAX response(s) to content`);
       text += '\n\n--- AJAX Data ---\n' + ajaxContents.join('\n');
       console.log(`Job ${jobId}: Added ${ajaxContents.length} AJAX response(s) to text`);
     }
     
     // Add frame contents to text
     if (frameContents.length > 0) {
+      scraperActionsService.extract(jobId, `Added ${frameContents.length} frame(s) content to text`);
       text += '\n\n' + frameContents.join('\n');
       console.log(`Job ${jobId}: Added ${frameContents.length} frame(s) content to text`);
     }

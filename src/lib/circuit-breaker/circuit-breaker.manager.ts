@@ -3,7 +3,7 @@
  * Circuit breaker implementation using opossum library
  */
 
-import * as CircuitBreakerLib from 'opossum';
+import CircuitBreakerLib from 'opossum';
 import { EventEmitter } from 'events';
 import {
   CircuitBreakerConfig,
@@ -13,7 +13,7 @@ import {
 } from './circuit-breaker.types';
 
 export class CircuitBreaker extends EventEmitter {
-  private breaker: CircuitBreakerLib;
+  private breaker: InstanceType<typeof CircuitBreakerLib>;
   private config: Required<CircuitBreakerConfig>;
   private failures: number = 0;
   private successes: number = 0;
@@ -45,7 +45,7 @@ export class CircuitBreaker extends EventEmitter {
       enabled: this.config.enabled,
     };
 
-    this.breaker = new (CircuitBreakerLib as any)(fn, options);
+    this.breaker = new CircuitBreakerLib(fn, options);
 
     // Track statistics
     this.breaker.on('success', () => {

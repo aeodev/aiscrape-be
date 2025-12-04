@@ -10,6 +10,7 @@ import { geminiService } from '../../../lib/gemini';
 import { ScrapeStatus } from '../scraper.types';
 import { processContentWithCheerio } from '../../../lib/processing';
 import { getRandomFingerprint, buildHeaders } from '../../../lib/scraping/headers';
+import { scraperActionsService } from '../scraper-actions.service';
 import type { ScrapedResult, ProgressEmitter } from './types';
 
 const SMART_TIMEOUT = 30000; // 30s for smart scraping
@@ -141,6 +142,42 @@ JSON:`;
     .map(({ idx }) => idx);
 }
 
+function extractAmazonDeals(data: any): string | null {
+  if (!data || typeof data !== 'object') return null
+  
+  const deals: string[] = []
+  
+  function traverse(obj: any, path = ''): void {
+    if (Array.isArray(obj)) {
+      obj.forEach((item, idx) => traverse(item, `${path}[${idx}]`))
+    } else if (obj && typeof obj === 'object') {
+      for (const [key, value] of Object.entries(obj)) {
+        const newPath = path ? `${path}.${key}` : key
+        
+        if (key.toLowerCase().includes('deal') || key.toLowerCase().includes('product') || key.toLowerCase().includes('item')) {
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            const dealObj = value as Record<string, any>
+            const dealInfo: string[] = []
+            if (dealObj.title || dealObj.name) dealInfo.push(`Title: ${dealObj.title || dealObj.name}`)
+            if (dealObj.price || dealObj.priceDisplay) dealInfo.push(`Price: ${dealObj.price || dealObj.priceDisplay}`)
+            if (dealObj.discount || dealObj.savings) dealInfo.push(`Discount: ${dealObj.discount || dealObj.savings}`)
+            if (dealObj.rating) dealInfo.push(`Rating: ${dealObj.rating}`)
+            if (dealInfo.length > 0) {
+              deals.push(dealInfo.join(' | '))
+            }
+          }
+        }
+        
+        traverse(value, newPath)
+      }
+    }
+  }
+  
+  traverse(data)
+  
+  return deals.length > 0 ? deals.join('\n') : null
+}
+
 /**
  * Smart Playwright scraper with AI-guided interactions
  */
@@ -156,6 +193,8 @@ export async function scrapeWithSmartPlaywright(
     message: 'Smart scraper: Launching browser...',
     progress: 55,
   });
+
+  scraperActionsService.action(jobId, 'Launching browser for smart scraping', { url });
 
   let browser: Browser | null = null;
   let context: BrowserContext | null = null;
@@ -238,16 +277,52 @@ export async function scrapeWithSmartPlaywright(
       progress: 60,
     });
 
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: SMART_TIMEOUT });
+    const isAmazon = url.toLowerCase().includes('amazon.com')
+    const isEcommerce = url.toLowerCase().includes('shop') || url.toLowerCase().includes('store') || url.toLowerCase().includes('deal') || url.toLowerCase().includes('product')
     
-    // Add random delay to mimic human behavior (1-3 seconds)
-    const humanDelay = 1000 + Math.random() * 2000;
-    await page.waitForTimeout(humanDelay);
+    if (isAmazon || isEcommerce) {
+      await page.goto(url, { waitUntil: 'networkidle', timeout: SMART_TIMEOUT })
+      scraperActionsService.wait(jobId, 'Waiting for dynamic content to load (3-5s)')
+      await page.waitForTimeout(3000 + Math.random() * 2000)
+      
+      if (isAmazon) {
+        scraperActionsService.action(jobId, 'Scrolling page to load deals')
+        await page.evaluate(async () => {
+          await new Promise<void>((resolve) => {
+            let totalHeight = 0
+            const distance = 300
+            const timer = setInterval(() => {
+              const scrollHeight = document.body.scrollHeight
+              window.scrollBy(0, distance)
+              totalHeight += distance
+              
+              if (totalHeight >= scrollHeight || totalHeight > 3000) {
+                clearInterval(timer)
+                resolve()
+              }
+            }, 200)
+          })
+        })
+        scraperActionsService.wait(jobId, 'Waiting for deals to load after scroll (2s)')
+        await page.waitForTimeout(2000)
+        
+        try {
+          await page.waitForSelector('[data-testid*="deal"], [data-component-type*="deal"], .DealGrid, .deal-tile', { timeout: 5000 })
+          scraperActionsService.observe(jobId, 'Deal elements detected')
+        } catch {
+          scraperActionsService.observe(jobId, 'Deal elements not found, proceeding with available content')
+        }
+      }
+    } else {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: SMART_TIMEOUT })
+      const humanDelay = 1000 + Math.random() * 2000
+      await page.waitForTimeout(humanDelay)
+    }
 
     // Get initial page state
-    let html = await page.content();
-    let text = await page.evaluate(() => document.body?.innerText || '');
-    const pageTitle = await page.title();
+    let html = await page.content()
+    let text = await page.evaluate(() => document.body?.innerText || '')
+    const pageTitle = await page.title()
 
     // Find clickable elements
     emitProgress(jobId, {
@@ -257,14 +332,21 @@ export async function scrapeWithSmartPlaywright(
       progress: 65,
     });
 
+    scraperActionsService.observe(jobId, 'Scanning page for clickable elements');
     const clickableElements = await findClickableElements(page);
     console.log(`Job ${jobId}: Found ${clickableElements.length} clickable elements`);
+    scraperActionsService.observe(jobId, `Found ${clickableElements.length} clickable elements`);
 
     let indicesToClick: number[] = [];
     if (clickableElements.length > 0) {
       // Get AI decision on what to click
+      scraperActionsService.analyze(jobId, 'AI analyzing which elements to click', {
+        totalElements: clickableElements.length,
+        userQuestion,
+      });
       indicesToClick = await getAIClickDecision(clickableElements, userQuestion, text);
       console.log(`Job ${jobId}: AI decided to click ${indicesToClick.length} elements`);
+      scraperActionsService.analyze(jobId, `AI decided to click ${indicesToClick.length} elements`);
 
       emitProgress(jobId, {
         jobId,
@@ -284,17 +366,22 @@ export async function scrapeWithSmartPlaywright(
           const elementText = element.text;
           console.log(`Job ${jobId}: Clicking "${elementText}"...`);
           
+          scraperActionsService.click(jobId, `Clicking button: "${elementText}"`, { elementIndex: idx });
+          
           // Find by text content
           const clickTarget = await page.getByText(elementText, { exact: true }).first();
           
           if (await clickTarget.isVisible()) {
             await clickTarget.click();
+            scraperActionsService.wait(jobId, 'Waiting for content to load (1.5s)');
             await page.waitForTimeout(1500); // Wait for content to load
             
             // Get updated content
             const newText = await page.evaluate(() => document.body?.innerText || '');
             if (newText.length > text.length + 100) {
-              console.log(`Job ${jobId}: Got ${newText.length - text.length} more chars after clicking "${elementText}"`);
+              const charsAdded = newText.length - text.length;
+              console.log(`Job ${jobId}: Got ${charsAdded} more chars after clicking "${elementText}"`);
+              scraperActionsService.observe(jobId, `Content loaded: +${charsAdded} characters`, { elementText });
               collectedData.push(`\n--- After clicking "${elementText}" ---\n${newText}`);
             }
           }
@@ -320,21 +407,58 @@ export async function scrapeWithSmartPlaywright(
       progress: 85,
     });
 
-    const jsonCaptures = networkCaptures.filter(c => c.isJson && c.response);
+    const jsonCaptures = networkCaptures.filter(c => c.isJson && c.response)
     if (jsonCaptures.length > 0) {
-      console.log(`Job ${jobId}: Captured ${jsonCaptures.length} JSON API responses`);
+      console.log(`Job ${jobId}: Captured ${jsonCaptures.length} JSON API responses`)
       
-      let apiDataText = '\n\n--- Captured API Data ---\n';
+      let apiDataText = '\n\n--- Captured API Data ---\n'
       for (const capture of jsonCaptures) {
         try {
-          const data = JSON.parse(capture.response!);
-          apiDataText += `\nAPI: ${capture.url}\n${JSON.stringify(data, null, 2)}\n`;
+          const data = JSON.parse(capture.response!)
+          
+          if (isAmazon) {
+            const amazonDealData = extractAmazonDeals(data)
+            if (amazonDealData) {
+              apiDataText += `\n--- Amazon Deals Data ---\n${amazonDealData}\n`
+            }
+          }
+          
+          apiDataText += `\nAPI: ${capture.url}\n${JSON.stringify(data, null, 2)}\n`
         } catch {
-          apiDataText += `\nAPI: ${capture.url}\n${capture.response}\n`;
+          apiDataText += `\nAPI: ${capture.url}\n${capture.response}\n`
         }
       }
-      text += apiDataText;
-      html += `\n<!-- CAPTURED API DATA -->\n<pre>${apiDataText}</pre>`;
+      text += apiDataText
+      html += `\n<!-- CAPTURED API DATA -->\n<pre>${apiDataText}</pre>`
+    }
+    
+    if (isAmazon) {
+      const dealText = await page.evaluate(() => {
+        const deals: string[] = []
+        const selectors = [
+          '[data-testid*="deal"]',
+          '[data-component-type*="deal"]',
+          '.DealGrid',
+          '.deal-tile',
+          '[data-asin]',
+        ]
+        
+        selectors.forEach(selector => {
+          document.querySelectorAll(selector).forEach(el => {
+            const dealText = el.textContent?.trim()
+            if (dealText && dealText.length > 20) {
+              deals.push(dealText)
+            }
+          })
+        })
+        
+        return deals.join('\n--- Deal ---\n')
+      })
+      
+      if (dealText) {
+        text += '\n\n--- Amazon Deals (Extracted from DOM) ---\n' + dealText
+        scraperActionsService.extract(jobId, `Extracted ${dealText.split('--- Deal ---').length} deals from page`)
+      }
     }
 
     // Process content through pipeline

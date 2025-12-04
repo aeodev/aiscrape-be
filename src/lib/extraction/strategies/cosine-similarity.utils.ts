@@ -159,7 +159,9 @@ export function cosineSimilarity(a: number[], b: number[]): number {
  * Split text into sentences
  */
 export function splitIntoSentences(text: string): string[] {
-  return natural.SentenceTokenizer.tokenize(text) || [];
+  // SentenceTokenizer requires abbreviations array (can be empty)
+  const tokenizer = new natural.SentenceTokenizer([]);
+  return tokenizer.tokenize(text) || [];
 }
 
 /**
@@ -179,7 +181,8 @@ export const EntityPatterns = {
   email: /[\w.-]+@[\w.-]+\.\w+/gi,
   phone: /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
   url: /https?:\/\/[^\s]+/gi,
-  price: /\$[\d,]+\.?\d*/g,
+  // Support multiple currencies: USD ($), PHP (₱), EUR (€), GBP (£), JPY (¥), INR (₹), etc.
+  price: /[\$₱€£¥₹]\s*[\d,]+\.?\d*|[\d,]+\.?\d*\s*[\$₱€£¥₹]|[\d,]+\.?\d*\s*(?:USD|PHP|EUR|GBP|JPY|INR|peso|dollar|euro|pound|yen)/gi,
   date: /\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}/g,
   company: /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:Inc|LLC|Ltd|Corp|Corporation|Company|Co))?\.?\b/g,
 };

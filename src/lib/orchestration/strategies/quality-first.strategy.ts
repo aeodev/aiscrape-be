@@ -63,7 +63,7 @@ export class QualityFirstStrategy extends BaseOrchestrationStrategy {
     console.log(`Job ${context.jobId}: Trying Tier 2 - Jina Reader...`);
 
     const jinaAttempt = await this.executeScraper(context, ScraperType.JINA, () =>
-      scrapeWithJina(context.url, context.jobId, context.emitProgress)
+      scrapeWithJina(context.url, context.jobId, context.emitProgress, context.options)
     );
     attempts.push(jinaAttempt);
 
@@ -86,7 +86,7 @@ export class QualityFirstStrategy extends BaseOrchestrationStrategy {
     console.log(`Job ${context.jobId}: Trying Tier 3 - HTTP scraper (fallback)...`);
 
     const httpAttempt = await this.executeScraper(context, ScraperType.HTTP, () =>
-      scrapeWithHttp(context.url, context.jobId, context.emitProgress)
+      scrapeWithHttp(context.url, context.jobId, context.emitProgress, context.options)
     );
     attempts.push(httpAttempt);
 

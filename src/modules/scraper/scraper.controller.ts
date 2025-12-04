@@ -4,6 +4,7 @@
  */
 
 import { Request, Response } from 'express';
+import { Types } from 'mongoose';
 import { scraperService } from './scraper.service';
 import { asyncHandler, ApiError } from '../../middleware/error-handler';
 import { getLinkedInCookieInstructions } from './scrapers/linkedin.scraper';
@@ -126,6 +127,10 @@ export class ScraperController {
   deleteJob = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
+    if (!id || id === 'undefined' || !Types.ObjectId.isValid(id)) {
+      throw new ApiError(400, 'Invalid job ID');
+    }
+
     const deleted = await scraperService.deleteJob(id);
 
     if (!deleted) {
@@ -144,6 +149,10 @@ export class ScraperController {
    */
   cancelJob = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
+
+    if (!id || id === 'undefined' || !Types.ObjectId.isValid(id)) {
+      throw new ApiError(400, 'Invalid job ID');
+    }
 
     const job = await scraperService.cancelJob(id);
 
@@ -176,12 +185,18 @@ export class ScraperController {
    * Chat with a job
    */
   chatWithJob = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
     const { message } = req.body;
+
+    if (!id || id === 'undefined' || !Types.ObjectId.isValid(id)) {
+      throw new ApiError(400, 'Invalid job ID');
+    }
+
     if (!message) {
       throw new ApiError(400, 'Message is required');
     }
 
-    const result = await scraperService.chatWithJob(req.params.id, message);
+    const result = await scraperService.chatWithJob(id, message);
 
     res.json({
       success: true,

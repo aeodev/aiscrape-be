@@ -120,6 +120,12 @@ export interface IScrapeMetadata {
   errorMessage?: string;
   retryCount: number;
   scraperUsed?: ScraperType;
+  fromCache?: boolean;            // Whether result was served from cache
+  circuitBreakerStats?: {         // Circuit breaker statistics
+    scraper?: any;
+    jina?: any;
+    gemini?: any;
+  };
 }
 
 export interface IAIProcessing {
@@ -261,6 +267,23 @@ export interface IScrapeErrorEvent {
   jobId: string;
   error: string;
   status: ScrapeStatus;
+}
+
+export type ScrapeActionType = 
+  | 'OBSERVATION' 
+  | 'ACTION' 
+  | 'EXTRACTION' 
+  | 'ANALYSIS' 
+  | 'NAVIGATION' 
+  | 'CLICK' 
+  | 'WAIT';
+
+export interface IScrapeActionEvent {
+  jobId: string;
+  type: ScrapeActionType;
+  message: string;
+  details?: Record<string, any>;
+  timestamp: string;
 }
 
 // ============================================================================

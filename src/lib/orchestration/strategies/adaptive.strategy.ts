@@ -16,6 +16,8 @@ import {
   scrapeWithJina,
   scrapeWithSmartPlaywright,
   scrapeWithPlaywright,
+  scrapeAmazon,
+  isAmazonUrl,
 } from '../../../modules/scraper/scrapers';
 import { SpeedFirstStrategy } from './speed-first.strategy';
 
@@ -34,10 +36,14 @@ const DOMAIN_PATTERNS: Record<string, ScraperType[]> = {
   'article': [ScraperType.HTTP, ScraperType.JINA, ScraperType.PLAYWRIGHT],
   'news': [ScraperType.HTTP, ScraperType.JINA, ScraperType.PLAYWRIGHT],
 
-  // E-commerce
+  // E-commerce (requires JavaScript for dynamic content)
+  'amazon.com': [ScraperType.PLAYWRIGHT, ScraperType.JINA, ScraperType.HTTP],
+  'amazon.': [ScraperType.PLAYWRIGHT, ScraperType.JINA, ScraperType.HTTP],
   'shop': [ScraperType.PLAYWRIGHT, ScraperType.JINA, ScraperType.HTTP],
   'store': [ScraperType.PLAYWRIGHT, ScraperType.JINA, ScraperType.HTTP],
   'product': [ScraperType.PLAYWRIGHT, ScraperType.JINA, ScraperType.HTTP],
+  'deal': [ScraperType.PLAYWRIGHT, ScraperType.JINA, ScraperType.HTTP],
+  'goldbox': [ScraperType.PLAYWRIGHT, ScraperType.JINA, ScraperType.HTTP],
 };
 
 /**
@@ -86,6 +92,39 @@ export class AdaptiveStrategy extends BaseOrchestrationStrategy {
     const startTime = Date.now();
     const attempts: ScraperExecutionResult[] = [];
 
+    // Check if this is an Amazon URL - use specialized scraper
+    if (isAmazonUrl(context.url)) {
+      console.log(`Job ${context.jobId}: Detected Amazon URL - using specialized Amazon scraper`);
+      this.emitProgress(context, 'Using specialized Amazon scraper with stealth mode...', 40);
+
+      const amazonAttempt = await this.executeScraper(context, ScraperType.PLAYWRIGHT, () =>
+        scrapeAmazon(context.url, context.jobId, {
+          ...context.options,
+          useProxy: context.options.useProxy ?? true, // Default to proxy for Amazon
+          amazonOptions: {
+            warmUpSession: true,
+            useMobile: false,
+          },
+        }, context.emitProgress)
+      );
+
+      attempts.push(amazonAttempt);
+
+      if (amazonAttempt.success && amazonAttempt.result && this.isValidContent(amazonAttempt.result)) {
+        const validation = await this.validateContent(context, amazonAttempt.result);
+        amazonAttempt.qualityScore = validation.qualityScore;
+        amazonAttempt.validationReason = validation.reason;
+
+        if (validation.sufficient) {
+          console.log(`Job ${context.jobId}: ✓ Amazon scraper completed successfully`);
+          return this.createSuccessResult(attempts, OrchestrationStrategy.ADAPTIVE, startTime);
+        }
+      }
+
+      // If Amazon scraper failed, fall through to standard scrapers
+      console.log(`Job ${context.jobId}: Amazon scraper did not return sufficient content, trying fallback scrapers...`);
+    }
+
     // Get recommended scrapers based on URL patterns
     const recommendedScrapers = getRecommendedScrapers(context.url);
     console.log(
@@ -109,13 +148,13 @@ export class AdaptiveStrategy extends BaseOrchestrationStrategy {
       switch (scraperType) {
         case ScraperType.HTTP:
           attempt = await this.executeScraper(context, ScraperType.HTTP, () =>
-            scrapeWithHttp(context.url, context.jobId, context.emitProgress)
+            scrapeWithHttp(context.url, context.jobId, context.emitProgress, context.options)
           );
           break;
 
         case ScraperType.JINA:
           attempt = await this.executeScraper(context, ScraperType.JINA, () =>
-            scrapeWithJina(context.url, context.jobId, context.emitProgress)
+            scrapeWithJina(context.url, context.jobId, context.emitProgress, context.options)
           );
           break;
 

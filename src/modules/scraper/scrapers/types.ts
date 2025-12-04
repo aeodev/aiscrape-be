@@ -17,6 +17,13 @@ export interface ScrapedResult {
   requestCount: number;
 }
 
+export interface AmazonScraperOptions {
+  /** Use mobile user-agent and viewport (sometimes easier to scrape) */
+  useMobile?: boolean;
+  /** Warm up session by visiting Amazon homepage first (builds cookie trust) */
+  warmUpSession?: boolean;
+}
+
 export interface ScraperOptions {
   useProxy?: boolean;
   blockResources?: boolean;
@@ -35,6 +42,8 @@ export interface ScraperOptions {
     sessionStorage?: Record<string, string>;
     localStorage?: Record<string, string>;
   };
+  /** Amazon-specific scraping options */
+  amazonOptions?: AmazonScraperOptions;
 }
 
 export type ProgressEmitter = (jobId: string, event: IScrapeProgressEvent) => void;

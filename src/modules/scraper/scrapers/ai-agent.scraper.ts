@@ -22,6 +22,7 @@ import {
   extractDomain,
 } from '../../../lib/crawling';
 import { env } from '../../../config/env';
+import { scraperActionsService } from '../scraper-actions.service';
 
 // User agents
 const USER_AGENTS = [
@@ -314,7 +315,10 @@ export async function scrapeWithAIAgent(
 
     console.log(`Job ${jobId}: AI Agent visiting ${crawlPage.url} (depth ${crawlPage.depth})`);
 
+    scraperActionsService.analyze(jobId, `Analyzing page structure: ${crawlPage.url}`, { depth: crawlPage.depth });
+
     // Fetch the page
+    scraperActionsService.action(jobId, `Fetching page: ${crawlPage.url}`);
     const html = await fetchPage(crawlPage.url, false, config.timeout);
     if (!html) {
       console.log(`Job ${jobId}: Failed to fetch ${crawlPage.url}`);
@@ -331,8 +335,11 @@ export async function scrapeWithAIAgent(
     allHtml.push(`<!-- PAGE: ${crawlPage.url} (depth ${crawlPage.depth}) -->\n${html}`);
 
     // Parse HTML
+    scraperActionsService.action(jobId, 'Parsing HTML content');
     const { text, links, scripts, ajaxTriggers } = parseHtml(html, crawlPage.url);
     allText.push(`\n--- Page: ${crawlPage.url} (depth ${crawlPage.depth}) ---\n${text}`);
+
+    scraperActionsService.observe(jobId, `Found ${links.length} links, ${ajaxTriggers.length} AJAX triggers`);
 
     // Discover links
     const discoveredLinks = linkDiscoverer.discoverLinks(
@@ -399,11 +406,13 @@ export async function scrapeWithAIAgent(
           const jsonData = extractFromJson(ajaxResponse, jobId);
           if (jsonData.length > 0) {
             console.log(`Job ${jobId}: Got ${jsonData.length} items from AJAX endpoint`);
+            scraperActionsService.extract(jobId, `Fetched ${jsonData.length} items from API`, { endpoint, itemCount: jsonData.length });
             allExtractedData.push(...jsonData);
             allText.push(`\n--- AJAX Data: ${endpoint} ---\n${JSON.stringify(jsonData, null, 2)}`);
           } else {
             const { text: ajaxText } = parseHtml(ajaxResponse, endpoint);
             if (ajaxText.length > 50) {
+              scraperActionsService.extract(jobId, `Extracted ${ajaxText.length} chars from AJAX endpoint`, { endpoint });
               allText.push(`\n--- AJAX Content: ${endpoint} ---\n${ajaxText}`);
               allHtml.push(`<!-- AJAX: ${endpoint} -->\n${ajaxResponse}`);
             }
@@ -435,12 +444,17 @@ export async function scrapeWithAIAgent(
 
     // Use AI to analyze the page (if we didn't get data from AJAX already)
     if (allExtractedData.length === 0 || crawlPage.depth === 0) {
+      scraperActionsService.analyze(jobId, 'AI analyzing page content for relevant data', { url: crawlPage.url });
       const visitedSet = new Set(duplicateDetector.getVisitedUrls());
       const analysis = await analyzePageWithAI(text, links, ajaxTriggers, task, visitedSet);
 
       console.log(`Job ${jobId}: AI found ${analysis.extractedData.length} items, ${analysis.linksToFollow.length} links to follow`);
 
       if (analysis.extractedData.length > 0) {
+        scraperActionsService.extract(jobId, `Extracted ${analysis.extractedData.length} data items from page`, { 
+          itemCount: analysis.extractedData.length,
+          url: crawlPage.url,
+        });
         allExtractedData.push(...analysis.extractedData);
       }
 

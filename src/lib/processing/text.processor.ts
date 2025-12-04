@@ -234,13 +234,16 @@ export class TextProcessor {
     );
 
     let node: Node | null;
+    // Node type constants: TEXT_NODE = 3, ELEMENT_NODE = 1
+    const TEXT_NODE = 3;
+    const ELEMENT_NODE = 1;
     while ((node = walker.nextNode())) {
-      if (node.nodeType === Node.TEXT_NODE) {
+      if (node.nodeType === TEXT_NODE) {
         const textContent = node.textContent || '';
         if (textContent.trim()) {
           text += textContent;
         }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
+      } else if (node.nodeType === ELEMENT_NODE) {
         const el = node as Element;
         const tagName = el.tagName.toLowerCase();
         

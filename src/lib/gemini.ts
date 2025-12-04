@@ -201,6 +201,46 @@ export class GeminiService {
       ? `Focus on extracting these types: ${entityTypes.join(', ')}`
       : 'Extract any relevant structured data';
 
+    // Detect if task asks for explanation or details
+    const taskLower = (taskDescription || '').toLowerCase();
+    const wantsExplanation = taskLower.includes('explain') || 
+                            taskLower.includes('explanation') ||
+                            taskLower.includes('details') ||
+                            taskLower.includes('detail') ||
+                            taskLower.includes('describe') ||
+                            taskLower.includes('what');
+
+    const summaryInstruction = wantsExplanation
+      ? 'Provide a comprehensive, detailed explanation of the page content. Include all important details, context, and explanations.'
+      : 'Brief summary of the page content';
+
+    const extractionInstruction = wantsExplanation
+      ? `- Extract all relevant information and provide detailed explanations
+- Include comprehensive details in entity data fields
+- Explain what each piece of information means and its context
+- Be thorough and descriptive rather than concise`
+      : `- Extract all relevant entities from the content
+- Be accurate and concise`;
+
+    // Detect commerce/e-commerce sites (check if URL or content suggests commerce)
+    const isCommerceSite = taskDescription.toLowerCase().includes('price') ||
+                           taskDescription.toLowerCase().includes('product') ||
+                           taskDescription.toLowerCase().includes('buy') ||
+                           content.toLowerCase().includes('price') ||
+                           content.toLowerCase().includes('₱') ||
+                           content.toLowerCase().includes('$') ||
+                           content.toLowerCase().includes('add to cart');
+
+    const commerceInstructions = isCommerceSite
+      ? `- IMPORTANT: Extract product prices from the content, including:
+     * Current price (check "Captured API Data" section if present - prices are often in JSON API responses)
+     * Original/discounted prices if available
+     * Currency symbol (₱, $, €, £, ¥, ₹, etc.)
+     * Price variations (if multiple options/variants)
+     * Look for prices in JSON API responses under "--- Captured API Data ---" section
+     * Extract pricing as PRICING entity type with full details (price, currency, originalPrice, discount, etc.)`
+      : '';
+
     return `
 You are an AI data extraction specialist. Analyze the following web content and extract structured information.
 
@@ -208,21 +248,29 @@ TASK: ${taskDescription || 'Extract relevant information from this web page'}
 
 INSTRUCTIONS:
 - ${entityTypesText}
+- ${extractionInstruction}
+${commerceInstructions ? `- ${commerceInstructions}` : ''}
 - Return valid JSON only
-- Be accurate and concise
 - Include confidence scores (0-1)
+- When extracting entities, include all relevant details and properties
 
 CONTENT TO ANALYZE:
 ${content.substring(0, 8000)} ${content.length > 8000 ? '...[truncated]' : ''}
 
 RESPONSE FORMAT (JSON only):
 {
-  "summary": "Brief summary of the page content",
+  "summary": "${summaryInstruction}",
+  ${wantsExplanation ? `"explanation": "Detailed explanation of the content, its meaning, and important context",` : ''}
   "entities": [
     {
       "type": "company|person|product|article|contact|pricing|custom",
       "data": {
-        // Relevant extracted data based on type
+        // Relevant extracted data based on type - include all important details and properties
+        // For products: name, description, features, specifications, price, currency, etc.
+        // For pricing: price, currency, originalPrice, discount, priceRange, etc.
+        // For people: name, role, bio, achievements, etc.
+        // For companies: name, description, services, contact info, etc.
+        // Include comprehensive details when task asks for explanation
       },
       "confidence": 0.95,
       "source": "Brief description of where this was found"
@@ -251,9 +299,17 @@ JSON Response:`;
 
       const parsed = JSON.parse(jsonMatch[0]);
 
+      // Combine summary and explanation if explanation exists
+      let summary = parsed.summary || '';
+      if (parsed.explanation) {
+        summary = summary 
+          ? `${summary}\n\n${parsed.explanation}`
+          : parsed.explanation;
+      }
+
       return {
         entities: parsed.entities || [],
-        summary: parsed.summary || '',
+        summary,
       };
     } catch (error) {
       console.error('Failed to parse Gemini response:', error);
@@ -276,19 +332,50 @@ JSON Response:`;
       throw new Error('Gemini API key not configured');
     }
 
+    const lowerMessage = newMessage.toLowerCase()
+    const isDealsQuery = lowerMessage.includes('deal') || lowerMessage.includes('product') || lowerMessage.includes('buy') || lowerMessage.includes('recommend')
+    const isListQuery = lowerMessage.includes('list') || lowerMessage.includes('all') || lowerMessage.includes('every')
+    
+    const dealsInstructions = isDealsQuery ? `
+SPECIAL INSTRUCTIONS FOR DEALS/PRODUCTS:
+- Look for product names, titles, descriptions, prices, discounts, ratings, and images
+- Extract product information even if it appears in cards, grids, lists, or dynamic sections
+- If you see product data in JSON, HTML attributes, or structured formats, extract it
+- For "top 5" or "recommend" requests, analyze products and provide recommendations with reasoning
+- Include prices, discounts, ratings, and key features when available
+- If deals are mentioned but not fully detailed, extract what IS available (names, prices, etc.)
+` : ''
+
+    const listInstructions = isListQuery ? `
+SPECIAL INSTRUCTIONS FOR LISTING:
+- Extract EVERY item requested, not just examples
+- Look through ALL sections of the content, including:
+  * Lists, tables, grids, cards
+  * JSON data, data attributes, structured content
+  * Dynamically loaded content that may appear later in the text
+  * Repeated patterns that indicate multiple items
+- Count items and verify you've extracted all of them
+- If content seems incomplete, extract what IS available and note it
+` : ''
+
     const systemPrompt = `
 You are a helpful AI assistant analyzing web content.
 Use the following scraped content as your knowledge base to answer the user's questions.
 
 CRITICAL INSTRUCTIONS:
 - Extract and return the EXACT information requested by the user
-- If asked for specific data (like team names, prices, companies, etc.), provide a clear, structured list
+- If asked for specific data (like deals, products, prices, team names, companies, etc.), provide a clear, structured list
 - Be THOROUGH - extract ALL instances, not just a few examples
 - Format lists clearly with bullet points or numbered lists
-- If extracting names, titles, or similar items, list them one per line or in a clear list format
-- If the answer is not in the content, clearly state that
-- When extracting multiple items (like "all team names"), you MUST list ALL of them, not just a few
+- If extracting names, titles, products, or similar items, list them one per line or in a clear list format
+- If the answer is not in the content, clearly state that - BUT first double-check:
+  * Look for data in different formats (JSON, HTML attributes, structured data)
+  * Check if content might be truncated - extract what IS visible
+  * Look for patterns that indicate the requested data exists
+- When extracting multiple items (like "all deals" or "all products"), you MUST extract ALL of them, not just a few
 - Be precise and accurate - don't make up information that isn't in the content
+${dealsInstructions}
+${listInstructions}
 
 CONTEXT:
 ${context.substring(0, 15000)} ${context.length > 15000 ? '...[truncated]' : ''}

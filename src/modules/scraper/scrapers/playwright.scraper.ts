@@ -12,6 +12,8 @@ import { ScrapeStatus } from '../scraper.types';
 import { processContentWithCheerio } from '../../../lib/processing';
 import { saveScreenshot } from '../utils/screenshot';
 import { proxyManager } from '../../../lib/proxy';
+import { getRandomFingerprint, buildHeaders, withOrigin } from '../../../lib/scraping/headers';
+import { scraperActionsService } from '../scraper-actions.service';
 import type { ScrapedResult, ScraperOptions, ProgressEmitter } from './types';
 
 // Optimized timeout - 15s max for Playwright (last resort)
@@ -63,6 +65,8 @@ export async function scrapeWithPlaywright(
     progress: 60,
   });
 
+  scraperActionsService.action(jobId, 'Launching browser', { url });
+
   // Configure proxy if enabled
   let proxyConfiguration: ProxyConfiguration | undefined;
   const useProxy = options.useProxy ?? false;
@@ -113,10 +117,20 @@ export async function scrapeWithPlaywright(
       maxOpenPagesPerBrowser: 5,
     },
     preNavigationHooks: [
-      async ({ page }) => {
-        await page.setExtraHTTPHeaders({
-          'User-Agent': getRandomUserAgent(),
-        });
+      async ({ page, request }) => {
+        // Get random browser fingerprint for realistic headers
+        const fingerprint = getRandomFingerprint();
+        const headers = buildHeaders(fingerprint);
+        
+        // Add Origin header based on the request URL
+        try {
+          const url = new URL(request.url);
+          const originHeaders = withOrigin(headers, `${url.protocol}//${url.host}`);
+          await page.setExtraHTTPHeaders(originHeaders);
+        } catch {
+          // Fallback if URL parsing fails
+          await page.setExtraHTTPHeaders(headers);
+        }
 
         // Aggressive resource blocking for speed
         if (shouldBlockResources) {
@@ -143,14 +157,31 @@ export async function scrapeWithPlaywright(
     async requestHandler({ request, page }) {
       page.setDefaultTimeout(PLAYWRIGHT_TIMEOUT);
 
-      // Use domcontentloaded first (much faster than networkidle)
-      try {
-        await page.waitForLoadState('domcontentloaded', { timeout: PLAYWRIGHT_TIMEOUT });
-        // Small wait for critical JS to execute
-        await page.waitForTimeout(1000);
-      } catch (error) {
-        console.log(`Job ${jobId}: domcontentloaded timed out`);
-        // Continue anyway - we'll get what we can
+      const isAmazon = request.url.toLowerCase().includes('amazon.com')
+      const isEcommerce = request.url.toLowerCase().includes('shop') || request.url.toLowerCase().includes('store') || request.url.toLowerCase().includes('deal')
+      
+      scraperActionsService.action(jobId, 'Loading page', { url: request.url })
+      
+      if (isAmazon || isEcommerce) {
+        try {
+          await page.waitForLoadState('networkidle', { timeout: PLAYWRIGHT_TIMEOUT })
+          scraperActionsService.observe(jobId, 'Page loaded (network idle)')
+          scraperActionsService.wait(jobId, 'Waiting for dynamic content (3s)')
+          await page.waitForTimeout(3000)
+        } catch (error) {
+          scraperActionsService.observe(jobId, 'Network idle timed out, using DOM content')
+          await page.waitForLoadState('domcontentloaded', { timeout: PLAYWRIGHT_TIMEOUT })
+          await page.waitForTimeout(2000)
+        }
+      } else {
+        try {
+          await page.waitForLoadState('domcontentloaded', { timeout: PLAYWRIGHT_TIMEOUT })
+          scraperActionsService.observe(jobId, 'Page DOM loaded')
+          scraperActionsService.wait(jobId, 'Waiting for JavaScript to execute (1s)')
+          await page.waitForTimeout(1000)
+        } catch (error) {
+          console.log(`Job ${jobId}: domcontentloaded timed out`)
+        }
       }
 
       emitProgress(jobId, {
@@ -160,13 +191,37 @@ export async function scrapeWithPlaywright(
         progress: 70,
       });
 
-      const pageTitle = await page.title();
-      const pageDescription = await page.locator('meta[name="description"]').getAttribute('content') || '';
-      let html = await page.content();
+      scraperActionsService.action(jobId, 'Extracting page content')
+
+      if (isAmazon) {
+        scraperActionsService.action(jobId, 'Scrolling page to load deals')
+        await page.evaluate(async () => {
+          await new Promise<void>((resolve) => {
+            let totalHeight = 0
+            const distance = 300
+            const timer = setInterval(() => {
+              const scrollHeight = document.body.scrollHeight
+              window.scrollBy(0, distance)
+              totalHeight += distance
+              
+              if (totalHeight >= scrollHeight || totalHeight > 3000) {
+                clearInterval(timer)
+                resolve()
+              }
+            }, 200)
+          })
+        })
+        scraperActionsService.wait(jobId, 'Waiting for deals to load after scroll (2s)')
+        await page.waitForTimeout(2000)
+      }
+
+      const pageTitle = await page.title()
+      const pageDescription = await page.locator('meta[name="description"]').getAttribute('content') || ''
+      let html = await page.content()
 
       let text = await page.evaluate(() => {
-        return document.body?.innerText || '';
-      });
+        return document.body?.innerText || ''
+      })
 
       // Extract content from iframes
       emitProgress(jobId, {
@@ -180,6 +235,10 @@ export async function scrapeWithPlaywright(
         const frames = page.frames();
         const iframeContents: string[] = [];
         
+        if (frames.length > 1) {
+          scraperActionsService.observe(jobId, `Found ${frames.length - 1} iframe(s) on page`);
+        }
+        
         for (const frame of frames) {
           if (frame === page.mainFrame()) continue; // Skip main frame
           
@@ -187,6 +246,7 @@ export async function scrapeWithPlaywright(
             const frameUrl = frame.url();
             if (!frameUrl || frameUrl === 'about:blank') continue;
             
+            scraperActionsService.action(jobId, `Extracting iframe content: ${frameUrl}`);
             // Wait for frame to load
             await frame.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
             
@@ -195,6 +255,7 @@ export async function scrapeWithPlaywright(
             
             if (frameText && frameText.length > 50) {
               console.log(`Job ${jobId}: Found iframe content from ${frameUrl} - ${frameText.length} chars`);
+              scraperActionsService.extract(jobId, `Extracted ${frameText.length} chars from iframe`, { frameUrl });
               iframeContents.push(`\n\n--- IFRAME CONTENT (${frameUrl}) ---\n${frameText}`);
               html += `\n<!-- IFRAME: ${frameUrl} -->\n${frameHtml}`;
             }

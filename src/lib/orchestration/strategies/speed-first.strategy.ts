@@ -37,7 +37,7 @@ export class SpeedFirstStrategy extends BaseOrchestrationStrategy {
     console.log(`Job ${context.jobId}: Trying Tier 1 - HTTP scraper...`);
 
     const httpAttempt = await this.executeScraper(context, ScraperType.HTTP, () =>
-      scrapeWithHttp(context.url, context.jobId, context.emitProgress)
+      scrapeWithHttp(context.url, context.jobId, context.emitProgress, context.options)
     );
     attempts.push(httpAttempt);
 

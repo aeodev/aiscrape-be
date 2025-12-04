@@ -6,7 +6,9 @@
  */
 
 import { ScrapeStatus } from '../scraper.types';
-import type { ScrapedResult, ProgressEmitter } from './types';
+import { proxyManager } from '../../../lib/proxy';
+import { scraperActionsService } from '../scraper-actions.service';
+import type { ScrapedResult, ProgressEmitter, ScraperOptions } from './types';
 
 const JINA_READER_URL = 'https://r.jina.ai';
 const JINA_TIMEOUT = 15000; // 15 seconds
@@ -14,7 +16,8 @@ const JINA_TIMEOUT = 15000; // 15 seconds
 export async function scrapeWithJina(
   url: string,
   jobId: string,
-  emitProgress: ProgressEmitter
+  emitProgress: ProgressEmitter,
+  options?: ScraperOptions
 ): Promise<ScrapedResult | null> {
   emitProgress(jobId, {
     jobId,
@@ -23,6 +26,18 @@ export async function scrapeWithJina(
     progress: 35,
   });
 
+  scraperActionsService.action(jobId, 'Calling Jina Reader API', { url });
+
+  // Get proxy if enabled
+  const useProxy = options?.useProxy ?? false;
+  let proxy: { url: string; id: string } | null = null;
+  if (useProxy) {
+    proxy = proxyManager.getProxy();
+    if (proxy) {
+      console.log(`Job ${jobId}: Using proxy ${proxy.id} for Jina scraper`);
+    }
+  }
+
   try {
     const startTime = Date.now();
     const jinaUrl = `${JINA_READER_URL}/${url}`;
@@ -30,6 +45,8 @@ export async function scrapeWithJina(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), JINA_TIMEOUT);
 
+    // Note: Jina API doesn't support proxy configuration directly
+    // Proxy would need to be configured at network level or via https-proxy-agent
     const response = await fetch(jinaUrl, {
       method: 'GET',
       headers: {
@@ -38,6 +55,15 @@ export async function scrapeWithJina(
       },
       signal: controller.signal,
     });
+
+    // Mark proxy success/failure if used
+    if (proxy) {
+      if (response.ok) {
+        proxyManager.markProxySuccess(proxy.id, Date.now() - startTime);
+      } else {
+        proxyManager.markProxyFailed(proxy.id);
+      }
+    }
 
     clearTimeout(timeoutId);
 
@@ -66,6 +92,11 @@ export async function scrapeWithJina(
       status: ScrapeStatus.RUNNING,
       message: `Jina Reader completed in ${duration}ms`,
       progress: 55,
+    });
+
+    scraperActionsService.action(jobId, 'Processing Jina API response');
+    scraperActionsService.extract(jobId, 'Extracting markdown and text from response', {
+      markdownLength: markdown.length,
     });
 
     // Extract title from markdown (usually first # heading)

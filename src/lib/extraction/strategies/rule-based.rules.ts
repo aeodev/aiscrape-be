@@ -200,6 +200,14 @@ export function createProductRuleSet(): RuleSet {
         confidence: 0.85,
       },
       {
+        name: 'product-price-shopee',
+        entityType: EntityType.PRICING,
+        selector: '[class*="price"], [data-testid*="price"], .product-price, [class*="Price"], [class*="amount"]',
+        text: true,
+        transform: 'parseNumber',
+        confidence: 0.8,
+      },
+      {
         name: 'product-price-currency',
         entityType: EntityType.PRICING,
         selector: '[itemtype*="Product"] [itemprop="priceCurrency"]',

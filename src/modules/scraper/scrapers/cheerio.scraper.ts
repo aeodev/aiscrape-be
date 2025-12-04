@@ -3,15 +3,18 @@
  * Lightweight scraping for static pages
  */
 
-import { CheerioCrawler, Dataset } from 'crawlee';
+import { CheerioCrawler, Dataset, ProxyConfiguration } from 'crawlee';
 import { ScrapeStatus } from '../scraper.types';
 import { processContentWithCheerio } from '../../../lib/processing';
-import type { ScrapedResult, ProgressEmitter } from './types';
+import { proxyManager } from '../../../lib/proxy';
+import { env } from '../../../config/env';
+import type { ScrapedResult, ProgressEmitter, ScraperOptions } from './types';
 
 export async function scrapeWithCheerio(
   url: string,
   jobId: string,
-  emitProgress: ProgressEmitter
+  emitProgress: ProgressEmitter,
+  options?: ScraperOptions
 ): Promise<ScrapedResult> {
   emitProgress(jobId, {
     jobId,
@@ -20,7 +23,27 @@ export async function scrapeWithCheerio(
     progress: 30,
   });
 
+  // Configure proxy if enabled
+  let proxyConfiguration: ProxyConfiguration | undefined;
+  const useProxy = options?.useProxy ?? false;
+
+  if (useProxy) {
+    const proxy = proxyManager.getProxy();
+    if (proxy) {
+      proxyConfiguration = new ProxyConfiguration({
+        proxyUrls: [proxy.url],
+      });
+      console.log(`Job ${jobId}: Using proxy ${proxy.id} for Cheerio scraper`);
+    } else if (env.PROXY_URL) {
+      // Fallback to direct PROXY_URL if proxy manager has no proxies
+      proxyConfiguration = new ProxyConfiguration({
+        proxyUrls: [env.PROXY_URL],
+      });
+    }
+  }
+
   const crawler = new CheerioCrawler({
+    proxyConfiguration,
     maxRequestsPerCrawl: 1,
     async requestHandler({ request, $, body, contentType }) {
       const pageTitle = $('title').text();
