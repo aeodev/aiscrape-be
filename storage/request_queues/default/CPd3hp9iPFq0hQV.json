@@ -1,0 +1,9 @@
+{
+	"id": "CPd3hp9iPFq0hQV",
+	"json": "{\"id\":\"CPd3hp9iPFq0hQV\",\"url\":\"https://www.pokemon.com/us/pokedex/bulbasaur\",\"loadedUrl\":\"https://www.pokemon.com/us/pokedex/bulbasaur\",\"uniqueKey\":\"https://www.pokemon.com/us/pokedex/bulbasaur\",\"method\":\"GET\",\"noRetry\":false,\"retryCount\":3,\"errorMessages\":[\"Error: requestHandler timed out after 15 seconds.\\n    at Timeout._onTimeout (/Users/aeodev/AIScrape/backend/node_modules/@apify/src/index.ts:88:74)\\n    at listOnTimeout (node:internal/timers:588:17)\\n    at processTimers (node:internal/timers:523:7)\",\"Error: requestHandler timed out after 15 seconds.\\n    at Timeout._onTimeout (/Users/aeodev/AIScrape/backend/node_modules/@apify/src/index.ts:88:74)\\n    at listOnTimeout (node:internal/timers:588:17)\\n    at processTimers (node:internal/timers:523:7)\",\"Error: requestHandler timed out after 15 seconds.\\n    at Timeout._onTimeout (/Users/aeodev/AIScrape/backend/node_modules/@apify/src/index.ts:88:74)\\n    at listOnTimeout (node:internal/timers:588:17)\\n    at processTimers (node:internal/timers:523:7)\",\"Error: requestHandler timed out after 15 seconds.\\n    at Timeout._onTimeout (/Users/aeodev/AIScrape/backend/node_modules/@apify/src/index.ts:88:74)\\n    at listOnTimeout (node:internal/timers:588:17)\\n    at processTimers (node:internal/timers:523:7)\"],\"headers\":{},\"userData\":{\"__crawlee\":{\"state\":5}},\"handledAt\":\"2025-12-04T03:54:40.917Z\"}",
+	"method": "GET",
+	"orderNo": null,
+	"retryCount": 3,
+	"uniqueKey": "https://www.pokemon.com/us/pokedex/bulbasaur",
+	"url": "https://www.pokemon.com/us/pokedex/bulbasaur"
+}

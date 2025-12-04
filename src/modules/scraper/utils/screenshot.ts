@@ -20,3 +20,10 @@ export async function saveScreenshot(buffer: Buffer, jobId: string): Promise<str
   return `/uploads/screenshots/${filename}`; // Return relative path for serving
 }
 
+
+
+
+
+
+
+

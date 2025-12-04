@@ -61,6 +61,20 @@ export interface IScrapeJob extends Document {
     useProxy?: boolean;
     blockResources?: boolean;
     includeScreenshots?: boolean;
+    linkedinAuth?: {
+      cookies?: Array<{
+        name: string;
+        value: string;
+        domain?: string;
+        path?: string;
+        expires?: number;
+        httpOnly?: boolean;
+        secure?: boolean;
+        sameSite?: 'Strict' | 'Lax' | 'None';
+      }>;
+      sessionStorage?: Record<string, string>;
+      localStorage?: Record<string, string>;
+    };
   };
 
   // Raw scraped data

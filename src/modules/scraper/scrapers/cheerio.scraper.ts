@@ -5,7 +5,7 @@
 
 import { CheerioCrawler, Dataset } from 'crawlee';
 import { ScrapeStatus } from '../scraper.types';
-import { htmlToMarkdown } from '../utils/html-converter';
+import { processContentWithCheerio } from '../../../lib/processing';
 import type { ScrapedResult, ProgressEmitter } from './types';
 
 export async function scrapeWithCheerio(
@@ -26,13 +26,18 @@ export async function scrapeWithCheerio(
       const pageTitle = $('title').text();
       const pageDescription = $('meta[name="description"]').attr('content') || '';
 
-      // Extract text content
-      const text = $('body').text().trim().replace(/\s+/g, ' ');
-
-      // Convert to markdown
-      const markdown = htmlToMarkdown($, $('body'));
+      // Process content through pipeline
+      const pipelineResult = await processContentWithCheerio($, $('body'), {
+        enableHtmlProcessing: true,
+        enableMarkdownConversion: true,
+        enableTextExtraction: true,
+        extractMainContent: true,
+      });
 
       const htmlBody = body.toString();
+      const text = pipelineResult.text;
+      const markdown = pipelineResult.markdown;
+
       console.log(`Job ${jobId}: Cheerio - Pushing data to Dataset - HTML: ${htmlBody.length} bytes, Text: ${text.length} chars`);
 
       await Dataset.pushData({
@@ -74,4 +79,9 @@ export async function scrapeWithCheerio(
     requestCount: 1,
   };
 }
+
+
+
+
+
 

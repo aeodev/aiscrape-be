@@ -142,6 +142,9 @@ export function classifyError(error: any, statusCode?: number): ScrapingError {
     message.includes('banned') ||
     message.includes('denied') ||
     message.includes('cloudflare') ||
+    message.includes('incapsula') ||
+    message.includes('incident id') ||
+    message.includes('imperva') ||
     message.includes('access denied')
   ) {
     return {
@@ -294,6 +297,20 @@ export function detectBlocking(html: string): ScrapingError | null {
     return {
       type: ScrapingErrorType.BLOCKED,
       message: 'Bot detected',
+      retryable: false,
+    };
+  }
+
+  // Incapsula/Imperva protection
+  if (
+    lowerHtml.includes('incapsula') ||
+    lowerHtml.includes('incident id') ||
+    lowerHtml.includes('request unsuccessful') ||
+    lowerHtml.includes('imperva')
+  ) {
+    return {
+      type: ScrapingErrorType.BLOCKED,
+      message: 'Incapsula bot protection detected',
       retryable: false,
     };
   }

@@ -1,29 +1,52 @@
 {
-  "requestsFinished": 1,
-  "requestsFailed": 0,
-  "requestsRetries": 0,
+  "requestsFinished": 0,
+  "requestsFailed": 1,
+  "requestsRetries": 1,
   "requestsFailedPerMinute": 0,
-  "requestsFinishedPerMinute": 17,
-  "requestMinDurationMillis": 2924,
-  "requestMaxDurationMillis": 2924,
-  "requestTotalFailedDurationMillis": 0,
-  "requestTotalFinishedDurationMillis": 2924,
-  "crawlerStartedAt": "2025-11-25T16:21:23.350Z",
-  "crawlerFinishedAt": "2025-11-25T16:21:26.657Z",
-  "statsPersistedAt": "2025-11-25T16:21:26.657Z",
-  "crawlerRuntimeMillis": 3459,
-  "crawlerLastStartTimestamp": 1764087683198,
+  "requestsFinishedPerMinute": 0,
+  "requestMinDurationMillis": null,
+  "requestMaxDurationMillis": 0,
+  "requestTotalFailedDurationMillis": 16549,
+  "requestTotalFinishedDurationMillis": 0,
+  "crawlerStartedAt": "2025-12-04T03:53:34.655Z",
+  "crawlerFinishedAt": "2025-12-04T03:54:40.998Z",
+  "statsPersistedAt": "2025-12-04T03:54:40.998Z",
+  "crawlerRuntimeMillis": 66476,
+  "crawlerLastStartTimestamp": 1764820414522,
   "requestRetryHistogram": [
+    null,
+    null,
+    null,
     1
   ],
   "statsId": 0,
-  "requestAvgFailedDurationMillis": null,
-  "requestAvgFinishedDurationMillis": 2924,
-  "requestTotalDurationMillis": 2924,
+  "requestAvgFailedDurationMillis": 16549,
+  "requestAvgFinishedDurationMillis": null,
+  "requestTotalDurationMillis": 16549,
   "requestsTotal": 1,
   "requestsWithStatusCode": {
-    "200": 1
+    "200": 4
   },
-  "errors": {},
-  "retryErrors": {}
+  "errors": {
+    "/Users/aeodev/AIScrape/backend/node_modules/@apify/src/index.ts:88:74": {
+      "missing error code": {
+        "Error": {
+          "requestHandler timed out after 15 seconds.": {
+            "count": 1
+          }
+        }
+      }
+    }
+  },
+  "retryErrors": {
+    "/Users/aeodev/AIScrape/backend/node_modules/@apify/src/index.ts:88:74": {
+      "missing error code": {
+        "Error": {
+          "requestHandler timed out after 15 seconds.": {
+            "count": 3
+          }
+        }
+      }
+    }
+  }
 }

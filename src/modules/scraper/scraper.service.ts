@@ -7,6 +7,7 @@
 import { scrapeRepository } from './scraper.repository';
 import { getIO } from '../../lib/socket';
 import { geminiService } from '../../lib/gemini';
+import { extractionManager, ExtractionStrategyType } from '../../lib/extraction';
 import { ApiError } from '../../middleware/error-handler';
 import { env } from '../../config/env';
 import {
@@ -21,10 +22,13 @@ import {
   scrapeWithHttp,
   scrapeWithJina,
   scrapeWithPlaywright,
+  scrapeWithSmartPlaywright,
   scrapeWithCheerio,
   scrapeWithAIAgent,
+  scrapeLinkedIn,
   type ScrapedResult,
 } from './scrapers';
+import { validateContent } from './utils/content-validator';
 
 export class ScraperService {
   /**
@@ -40,6 +44,20 @@ export class ScraperService {
       useProxy?: boolean;
       blockResources?: boolean;
       includeScreenshots?: boolean;
+      linkedinAuth?: {
+        cookies?: Array<{
+          name: string;
+          value: string;
+          domain?: string;
+          path?: string;
+          expires?: number;
+          httpOnly?: boolean;
+          secure?: boolean;
+          sameSite?: 'Strict' | 'Lax' | 'None';
+        }>;
+        sessionStorage?: Record<string, string>;
+        localStorage?: Record<string, string>;
+      };
     }
   ): Promise<IScrapeJob> {
     const job = await scrapeRepository.create({
@@ -53,6 +71,7 @@ export class ScraperService {
         useProxy: options.useProxy,
         blockResources: options.blockResources,
         includeScreenshots: options.includeScreenshots,
+        linkedinAuth: options.linkedinAuth,
       },
     });
 
@@ -91,33 +110,86 @@ export class ScraperService {
   }
 
   /**
-   * Execute cascade scraping: HTTP → Jina → Playwright
+   * Execute cascade scraping: HTTP → Quality Check → Smart Playwright
+   * Uses AI to validate if content is sufficient before escalating
    */
   private async executeCascadeScraping(
     url: string,
     jobId: string,
-    options: { useProxy?: boolean; blockResources?: boolean; includeScreenshots?: boolean }
+    options: { useProxy?: boolean; blockResources?: boolean; includeScreenshots?: boolean },
+    taskDescription?: string
   ): Promise<ScrapedResult> {
     const emitProgress = this.emitProgress.bind(this);
+    const userQuestion = taskDescription || 'Extract all relevant information';
 
     // Tier 1: HTTP + Cheerio (fastest, ~100ms)
     console.log(`Job ${jobId}: Trying Tier 1 - HTTP scraper...`);
     const httpResult = await scrapeWithHttp(url, jobId, emitProgress);
+    
     if (this.isValidContent(httpResult)) {
-      console.log(`Job ${jobId}: ✓ HTTP scraper succeeded`);
-      return httpResult!;
+      console.log(`Job ${jobId}: ✓ HTTP scraper got content, validating quality...`);
+      
+      // AI Quality Check: Does the content actually answer the question?
+      emitProgress(jobId, {
+        jobId,
+        status: ScrapeStatus.RUNNING,
+        message: 'Validating content quality with AI...',
+        progress: 50,
+      });
+      
+      // Use enhanced validator
+      const { contentValidator } = await import('../../lib/validation');
+      const validationContext = {
+        html: httpResult!.html || '',
+        text: httpResult!.text || httpResult!.html || '',
+        markdown: httpResult!.markdown || '',
+        url: url,
+        taskDescription: userQuestion,
+        pageTitle: httpResult!.pageTitle,
+      };
+      
+      const validationResult = await contentValidator.validateWithCache(validationContext);
+      const validation = {
+        sufficient: validationResult.sufficient,
+        reason: validationResult.reason,
+        needsInteraction: validationResult.needsInteraction,
+        suggestedActions: validationResult.suggestedActions,
+      };
+      
+      console.log(`Job ${jobId}: Content validation - sufficient: ${validation.sufficient}, reason: ${validation.reason}, quality score: ${validationResult.qualityScore.overall.toFixed(2)}, strategy: ${validationResult.validationStrategy}`);
+      
+      if (validation.sufficient) {
+        console.log(`Job ${jobId}: ✓ Content is sufficient for the question`);
+        return httpResult!;
+      }
+      
+      // Content insufficient - escalate to Smart Playwright
+      console.log(`Job ${jobId}: Content insufficient, escalating to Smart Playwright...`);
+      console.log(`Job ${jobId}: Reason: ${validation.reason}`);
+      if (validation.suggestedActions) {
+        console.log(`Job ${jobId}: Suggested actions: ${validation.suggestedActions.join(', ')}`);
+      }
     }
 
-    // Tier 2: Jina Reader API (fast, ~1-3s)
-    console.log(`Job ${jobId}: Trying Tier 2 - Jina Reader API...`);
-    const jinaResult = await scrapeWithJina(url, jobId, emitProgress);
-    if (this.isValidContent(jinaResult)) {
-      console.log(`Job ${jobId}: ✓ Jina Reader API succeeded`);
-      return jinaResult!;
+    // Tier 2: Smart Playwright with AI-guided interactions
+    console.log(`Job ${jobId}: Trying Tier 2 - Smart Playwright (AI-guided)...`);
+    emitProgress(jobId, {
+      jobId,
+      status: ScrapeStatus.RUNNING,
+      message: 'Launching smart browser with AI guidance...',
+      progress: 55,
+    });
+    
+    try {
+      const smartResult = await scrapeWithSmartPlaywright(url, jobId, userQuestion, emitProgress);
+      console.log(`Job ${jobId}: ✓ Smart Playwright completed`);
+      return smartResult;
+    } catch (smartError: any) {
+      console.log(`Job ${jobId}: Smart Playwright failed: ${smartError.message}, falling back to standard Playwright`);
     }
 
-    // Tier 3: Playwright (last resort, ~10-15s)
-    console.log(`Job ${jobId}: Trying Tier 3 - Playwright (last resort)...`);
+    // Tier 3: Standard Playwright (fallback)
+    console.log(`Job ${jobId}: Trying Tier 3 - Standard Playwright (fallback)...`);
     const playwrightResult = await scrapeWithPlaywright(url, jobId, options, emitProgress);
     console.log(`Job ${jobId}: ✓ Playwright completed`);
     return playwrightResult;
@@ -157,8 +229,59 @@ export class ScraperService {
 
       await addRandomDelay();
 
-      // Execute scraping based on type
-      switch (scraperType) {
+      // Check if this is a LinkedIn URL and has auth provided
+      const isLinkedIn = job.url.includes('linkedin.com');
+      const hasLinkedInAuth = job.scrapeOptions?.linkedinAuth?.cookies && job.scrapeOptions.linkedinAuth.cookies.length > 0;
+
+      if (isLinkedIn && hasLinkedInAuth) {
+        // Use LinkedIn-specific scraper
+        console.log(`Job ${jobId}: Detected LinkedIn URL with authentication, using LinkedIn scraper`);
+        emitProgress(jobId, {
+          jobId,
+          status: ScrapeStatus.RUNNING,
+          message: 'Using LinkedIn authenticated scraper...',
+          progress: 25,
+        });
+        
+        scrapedData = await scrapeLinkedIn(
+          job.url,
+          jobId,
+          job.scrapeOptions.linkedinAuth,
+          emitProgress
+        );
+        scraperUsed = ScraperType.PLAYWRIGHT; // LinkedIn uses Playwright under the hood
+      } else if (isLinkedIn && !hasLinkedInAuth) {
+        const instructions = `
+LinkedIn URLs require authentication. To scrape LinkedIn:
+
+1. Get your LinkedIn cookies:
+   - Open LinkedIn in your browser and log in
+   - Open Developer Tools (F12)
+   - Go to Application → Cookies → https://www.linkedin.com
+   - Copy these cookies: li_at, JSESSIONID, bcookie
+
+2. Or use browser console:
+   document.cookie.split(';').map(c => {
+     const [name, value] = c.trim().split('=');
+     return { name, value, domain: '.linkedin.com', path: '/' };
+   }).filter(c => ['li_at', 'JSESSIONID', 'bcookie'].includes(c.name))
+
+3. Include cookies in your request:
+   {
+     "input": "https://www.linkedin.com/...",
+     "linkedinAuth": {
+       "cookies": [
+         { "name": "li_at", "value": "YOUR_VALUE", "domain": ".linkedin.com", "path": "/" }
+       ]
+     }
+   }
+
+For detailed instructions, visit: GET /api/scrape/linkedin/instructions
+`;
+        throw new Error(instructions.trim());
+      } else {
+        // Execute scraping based on type
+        switch (scraperType) {
         case ScraperType.HTTP:
           const httpResult = await scrapeWithHttp(job.url, jobId, emitProgress);
           if (!httpResult) throw new Error('HTTP scraper failed');
@@ -191,17 +314,21 @@ export class ScraperService {
 
         case ScraperType.AUTO:
         default:
-          // Use cascade: HTTP → Jina → Playwright
-          scrapedData = await this.executeCascadeScraping(job.url, jobId, job.scrapeOptions || {});
-          // Determine which scraper actually worked based on content
-          if (scrapedData.contentType === 'text/markdown') {
-            scraperUsed = ScraperType.JINA;
-          } else if (scrapedData.screenshots?.length) {
-            scraperUsed = ScraperType.PLAYWRIGHT;
-          } else {
-            scraperUsed = ScraperType.HTTP;
-          }
+          // Use crawler orchestrator
+          const { crawlerOrchestrator } = await import('../../lib/orchestration');
+          const orchestrationContext = {
+            url: job.url,
+            jobId,
+            taskDescription: job.taskDescription,
+            options: job.scrapeOptions || {},
+            emitProgress,
+          };
+          
+          const orchestrationResult = await crawlerOrchestrator.orchestrate(orchestrationContext);
+          scrapedData = orchestrationResult.result;
+          scraperUsed = orchestrationResult.scraperUsed;
           break;
+        }
       }
 
       // Validate scraped data
@@ -245,7 +372,7 @@ export class ScraperService {
       let extractedEntities: IExtractedEntity[] = [];
       let aiProcessing = undefined;
 
-      if (geminiService.isAvailable() && job.taskDescription) {
+      if (job.taskDescription) {
         try {
           this.emitProgress(jobId, {
             jobId,
@@ -254,25 +381,65 @@ export class ScraperService {
             progress: 90,
           });
 
-          const aiStartTime = Date.now();
-          const aiResult = await geminiService.extractData(
-            scrapedData.text || scrapedData.html || '',
-            job.taskDescription
-          );
+          // Use extraction manager with fallback to direct Gemini service
+          const extractionContext = {
+            html: scrapedData.html || '',
+            markdown: scrapedData.markdown || '',
+            text: scrapedData.text || scrapedData.html || '',
+            url: job.url,
+            taskDescription: job.taskDescription,
+          };
 
-          extractedEntities = aiResult.entities;
+          // Try extraction manager first (if strategies are registered)
+          const availableStrategies = extractionManager.getAvailableStrategies();
+          let extractionResult;
+
+          if (availableStrategies.length > 0) {
+            // Use extraction manager with LLM strategy preferred
+            extractionResult = await extractionManager.extractWithFallback(
+              extractionContext,
+              [ExtractionStrategyType.LLM, ...availableStrategies]
+            );
+          } else {
+            // Fallback to direct Gemini service if no strategies registered yet
+            if (geminiService.isAvailable()) {
+              const aiStartTime = Date.now();
+              const aiResult = await geminiService.extractData(
+                scrapedData.text || scrapedData.html || '',
+                job.taskDescription
+              );
+              extractionResult = {
+                entities: aiResult.entities,
+                success: aiResult.success,
+                strategy: ExtractionStrategyType.LLM,
+                executionTime: Date.now() - aiStartTime,
+                error: aiResult.error,
+                metadata: { modelName: aiResult.modelName },
+              };
+            } else {
+              extractionResult = {
+                entities: [],
+                success: false,
+                strategy: ExtractionStrategyType.LLM,
+                executionTime: 0,
+                error: 'No extraction strategies available',
+              };
+            }
+          }
+
+          extractedEntities = extractionResult.entities;
           aiProcessing = {
-            model: aiResult.modelName || 'gemini-pro',
+            model: extractionResult.metadata?.modelName || 'extraction-manager',
             prompt: job.taskDescription,
-            response: aiResult.summary,
-            processingTime: Date.now() - aiStartTime,
-            success: aiResult.success,
-            error: aiResult.error,
+            response: extractionResult.metadata?.summary || '',
+            processingTime: extractionResult.executionTime,
+            success: extractionResult.success,
+            error: extractionResult.error,
           };
         } catch (aiError: any) {
           console.error(`AI extraction failed for job ${jobId}:`, aiError);
           aiProcessing = {
-            model: 'gemini-pro',
+            model: 'extraction-manager',
             prompt: job.taskDescription,
             response: '',
             processingTime: 0,
@@ -441,6 +608,20 @@ export class ScraperService {
       blockResources?: boolean;
       includeScreenshots?: boolean;
       forceRefresh?: boolean;
+      linkedinAuth?: {
+        cookies?: Array<{
+          name: string;
+          value: string;
+          domain?: string;
+          path?: string;
+          expires?: number;
+          httpOnly?: boolean;
+          secure?: boolean;
+          sameSite?: 'Strict' | 'Lax' | 'None';
+        }>;
+        sessionStorage?: Record<string, string>;
+        localStorage?: Record<string, string>;
+      };
     }
   ): Promise<{
     job?: IScrapeJob;
@@ -487,6 +668,7 @@ export class ScraperService {
           useProxy: options.useProxy,
           blockResources: options.blockResources,
           includeScreenshots: options.includeScreenshots,
+          linkedinAuth: options.linkedinAuth,
         });
 
         // Wait for job to complete (reduced timeout since cascade is faster)

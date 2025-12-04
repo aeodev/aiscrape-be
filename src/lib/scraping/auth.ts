@@ -224,7 +224,7 @@ export class AuthHandler {
    * Logout by clearing session
    */
   async logout(domain: string, identifier?: string): Promise<void> {
-    sessionManager.clearSession(domain, identifier);
+    await sessionManager.clearSession(domain, identifier);
     await this.context.clearCookies();
   }
 }
@@ -276,7 +276,7 @@ export async function withAuthentication<T>(
   const authHandler = new AuthHandler(page, context);
 
   // Check if we have a valid session
-  if (sessionManager.hasValidSession(domain, credentials.username)) {
+  if (await sessionManager.hasValidSession(domain, credentials.username)) {
     // Restore session
     const restored = await sessionManager.restoreSession(
       domain,

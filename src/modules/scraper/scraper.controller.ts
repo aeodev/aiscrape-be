@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { scraperService } from './scraper.service';
 import { asyncHandler, ApiError } from '../../middleware/error-handler';
+import { getLinkedInCookieInstructions } from './scrapers/linkedin.scraper';
 import {
   ICreateScrapeJobRequest,
   IScrapeJobResponse,
@@ -195,7 +196,7 @@ export class ScraperController {
    * Add "refresh" or "rescrape" to the input to force a fresh scrape
    */
   scrapeAndAnswer = asyncHandler(async (req: Request, res: Response) => {
-    let { input, scraperType, useProxy, blockResources, includeScreenshots, forceRefresh } = req.body;
+    let { input, scraperType, useProxy, blockResources, includeScreenshots, forceRefresh, linkedinAuth } = req.body;
 
     if (!input || typeof input !== 'string' || !input.trim()) {
       throw new ApiError(400, 'Input is required');
@@ -223,11 +224,49 @@ export class ScraperController {
       blockResources,
       includeScreenshots,
       forceRefresh,
+      linkedinAuth,
     });
 
     res.json({
       success: true,
       ...result,
+    });
+  });
+
+  /**
+   * GET /api/scrape/linkedin/instructions
+   * Get instructions on how to extract LinkedIn cookies
+   */
+  getLinkedInInstructions = asyncHandler(async (req: Request, res: Response) => {
+    const instructions = getLinkedInCookieInstructions();
+    
+    res.json({
+      success: true,
+      instructions,
+      example: {
+        linkedinAuth: {
+          cookies: [
+            {
+              name: 'li_at',
+              value: 'YOUR_LI_AT_COOKIE_VALUE',
+              domain: '.linkedin.com',
+              path: '/',
+              secure: true,
+              httpOnly: true,
+              sameSite: 'None',
+            },
+            {
+              name: 'JSESSIONID',
+              value: 'YOUR_JSESSIONID_VALUE',
+              domain: '.linkedin.com',
+              path: '/',
+              secure: true,
+              httpOnly: true,
+              sameSite: 'None',
+            },
+          ],
+        },
+      },
     });
   });
 }

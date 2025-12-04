@@ -8,6 +8,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env';
 import { errorHandler } from './middleware/error-handler';
+import { rateLimitMiddleware } from './middleware/rate-limit.middleware';
 
 // Import routers
 import scraperRouter from './modules/scraper/scraper.router';
@@ -35,6 +36,18 @@ export const createApp = (): Application => {
   // Body parsing middleware
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+  // Rate limiting middleware (if enabled)
+  if (env.RATE_LIMIT_ENABLED) {
+    // Apply rate limiting to API routes
+    app.use('/api/scrape', rateLimitMiddleware({
+      windowMs: env.RATE_LIMIT_WINDOW_MS,
+      maxRequests: env.RATE_LIMIT_MAX_REQUESTS,
+      message: 'Too many requests, please try again later.',
+      standardHeaders: true,
+      legacyHeaders: true,
+    }));
+  }
 
   // ============================================================================
   // Routes

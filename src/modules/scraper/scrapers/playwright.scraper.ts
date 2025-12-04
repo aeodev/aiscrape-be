@@ -9,8 +9,9 @@ import { chromium } from 'playwright';
 import * as cheerio from 'cheerio';
 import { env } from '../../../config/env';
 import { ScrapeStatus } from '../scraper.types';
-import { htmlToMarkdown } from '../utils/html-converter';
+import { processContentWithCheerio } from '../../../lib/processing';
 import { saveScreenshot } from '../utils/screenshot';
+import { proxyManager } from '../../../lib/proxy';
 import type { ScrapedResult, ScraperOptions, ProgressEmitter } from './types';
 
 // Optimized timeout - 15s max for Playwright (last resort)
@@ -66,10 +67,18 @@ export async function scrapeWithPlaywright(
   let proxyConfiguration: ProxyConfiguration | undefined;
   const useProxy = options.useProxy ?? false;
 
-  if (useProxy && env.PROXY_URL) {
-    proxyConfiguration = new ProxyConfiguration({
-      proxyUrls: [env.PROXY_URL],
-    });
+  if (useProxy) {
+    const proxy = proxyManager.getProxy();
+    if (proxy) {
+      proxyConfiguration = new ProxyConfiguration({
+        proxyUrls: [proxy.url],
+      });
+    } else if (env.PROXY_URL) {
+      // Fallback to direct PROXY_URL if proxy manager has no proxies
+      proxyConfiguration = new ProxyConfiguration({
+        proxyUrls: [env.PROXY_URL],
+      });
+    }
   }
 
   const shouldBlockResources = options.blockResources ?? true; // Always block by default for speed
@@ -225,16 +234,27 @@ export async function scrapeWithPlaywright(
         screenshotPath = await saveScreenshot(screenshot, jobId);
       }
 
+      // Process content through pipeline
       const $ = cheerio.load(html);
-      const markdown = htmlToMarkdown($, $('body'));
+      const pipelineResult = await processContentWithCheerio($, $('body'), {
+        enableHtmlProcessing: true,
+        enableMarkdownConversion: true,
+        enableTextExtraction: true,
+        extractMainContent: true,
+      });
 
-      console.log(`Job ${jobId}: Playwright scrape complete - HTML: ${html.length} bytes, Text: ${text.length} chars`);
+      // Use pipeline results, fallback to existing text if pipeline text is shorter
+      const markdown = pipelineResult.markdown || '';
+      const processedText = pipelineResult.text || text;
+      const finalText = processedText.length > text.length ? processedText : text;
+
+      console.log(`Job ${jobId}: Playwright scrape complete - HTML: ${html.length} bytes, Text: ${finalText.length} chars`);
 
       await Dataset.pushData({
         url: request.url,
         html,
         markdown,
-        text,
+        text: finalText,
         pageTitle,
         pageDescription,
         screenshot: screenshotPath,

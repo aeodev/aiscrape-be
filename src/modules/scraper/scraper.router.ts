@@ -64,6 +64,13 @@ router.post('/:id/chat', scraperController.chatWithJob);
  */
 router.post('/ask', scraperController.scrapeAndAnswer);
 
+/**
+ * @route   GET /api/scrape/linkedin/instructions
+ * @desc    Get instructions for extracting LinkedIn cookies
+ * @access  Public
+ */
+router.get('/linkedin/instructions', scraperController.getLinkedInInstructions);
+
 export default router;
 
 
